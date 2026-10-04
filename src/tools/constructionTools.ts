@@ -123,6 +123,64 @@ export const createPerpendicularTool = (): Tool => {
   }
 }
 
+/**
+ * Perpendicular bisector of a→b, as long as the segment itself, and its midpoint.
+ * Only halves, sums and a swap of components: no trigonometry and no
+ * normalisation, so the result is exact to the last bit of the coordinates.
+ */
+export const bisectorOf = (a: Vec, b: Vec): { mid: Vec; seg: Segment } => {
+  const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
+  const half = { x: -(b.y - a.y) / 2, y: (b.x - a.x) / 2 }
+  return { mid, seg: segment(sub(mid, half), add(mid, half)) }
+}
+
+/** Mediatriz: pick two points; the bisector and the midpoint are drawn at once. */
+export const createBisectorTool = (): Tool => {
+  let first: Vec | null = null
+  let cursor: Vec | null = null
+  let snap: SnapResult | null = null
+
+  return {
+    down(e, api) {
+      snap = api.snap(e.world)
+      const p = snap.p
+      if (!first) {
+        first = p
+        return
+      }
+      if (distance(first, p) < api.px(2)) return
+      const { mid, seg } = bisectorOf(first, p)
+      api.create([seg, { kind: 'point', p: mid }])
+      first = null
+    },
+    move(e, api) {
+      snap = api.snap(e.world)
+      cursor = snap.p
+    },
+    up() {},
+    cancel() {
+      const had = first !== null
+      first = null
+      return had
+    },
+    overlays(api) {
+      const out: Overlay[] = []
+      if (first && cursor && distance(first, cursor) >= api.px(2)) {
+        const { mid, seg } = bisectorOf(first, cursor)
+        out.push({ kind: 'guide', a: first, b: cursor }, { kind: 'ghost', geom: seg })
+        out.push(rightAngleAt(mid, segment(first, cursor), seg.b))
+        out.push({ kind: 'marker', p: first }, { kind: 'marker', p: mid })
+      } else if (first) {
+        out.push({ kind: 'marker', p: first })
+      }
+      return [...out, ...snapOverlay(snap)]
+    },
+    hint() {
+      return first ? 'Selecciona el segundo punto: se traza la mediatriz y su punto medio' : 'Selecciona el primer punto'
+    },
+  }
+}
+
 /** Parallel: pick a line, then a point; the line is copied through that point. */
 export const createParallelTool = (): Tool => {
   let base: Segment | null = null

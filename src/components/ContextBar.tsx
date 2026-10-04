@@ -12,7 +12,7 @@ import { formatCoordinate, formatLength } from '../utils/format'
 import { Segmented } from './ui/Segmented'
 import { Tooltip } from './ui/Tooltip'
 
-const PENCIL_TOOLS: readonly ToolId[] = ['point', 'line', 'perpendicular', 'parallel', 'compass', 'arc', 'escuadra', 'cartabon']
+const PENCIL_TOOLS: readonly ToolId[] = ['point', 'line', 'perpendicular', 'parallel', 'bisector', 'compass', 'arc', 'escuadra', 'cartabon']
 
 const WIDTHS = [
   { value: 0.35, label: '0,35' },

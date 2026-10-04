@@ -58,6 +58,7 @@ export type ToolId =
   | 'line'
   | 'perpendicular'
   | 'parallel'
+  | 'bisector'
   | 'compass'
   | 'arc'
   | 'escuadra'

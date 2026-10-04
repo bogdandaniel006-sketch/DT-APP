@@ -33,6 +33,15 @@ export const ParallelIcon = () => (
   </Icon>
 )
 
+export const BisectorIcon = () => (
+  <Icon>
+    <path d="M6 14h12" />
+    <path d="M12 4v17" />
+    <circle cx="5" cy="14" r="1.7" fill="currentColor" stroke="none" />
+    <circle cx="19" cy="14" r="1.7" fill="currentColor" stroke="none" />
+  </Icon>
+)
+
 export const ArcIcon = () => (
   <Icon>
     <path d="M4 18a10 10 0 0 1 16-8" />

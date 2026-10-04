@@ -1,6 +1,6 @@
 import type { ToolId } from '../types'
 import { createCompassTool } from './compassTool'
-import { createParallelTool, createPerpendicularTool } from './constructionTools'
+import { createBisectorTool, createParallelTool, createPerpendicularTool } from './constructionTools'
 import { createEraserTool } from './eraserTool'
 import { createInstrumentTool } from './instrumentTool'
 import { createLineTool } from './lineTool'
@@ -15,6 +15,7 @@ export const createTools = (): Record<ToolId, Tool> => ({
   line: createLineTool(),
   perpendicular: createPerpendicularTool(),
   parallel: createParallelTool(),
+  bisector: createBisectorTool(),
   compass: createCompassTool('circle'),
   arc: createCompassTool('arc'),
   escuadra: createInstrumentTool('escuadra'),
@@ -24,4 +25,4 @@ export const createTools = (): Record<ToolId, Tool> => ({
   eraser: createEraserTool(),
 })
 
-export const DRAWING_TOOLS: readonly ToolId[] = ['line', 'perpendicular', 'parallel', 'compass', 'arc', 'escuadra', 'cartabon']
+export const DRAWING_TOOLS: readonly ToolId[] = ['line', 'perpendicular', 'parallel', 'bisector', 'compass', 'arc', 'escuadra', 'cartabon']

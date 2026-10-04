@@ -4,7 +4,7 @@ import { appStore, hideInstrument, setTool } from '../state/appStore'
 import { useStore } from '../state/createStore'
 import type { ToolId } from '../types'
 import { LayerMenu } from './LayerMenu'
-import { ArcIcon, CartabonIcon, EscuadraIcon, ParallelIcon, PerpendicularIcon, PointIcon } from './ToolIcons'
+import { ArcIcon, BisectorIcon, CartabonIcon, EscuadraIcon, ParallelIcon, PerpendicularIcon, PointIcon } from './ToolIcons'
 import { IconButton } from './ui/IconButton'
 
 interface ToolDef {
@@ -20,6 +20,7 @@ export const TOOLS: readonly ToolDef[] = [
   { id: 'line', label: 'Línea', shortcut: 'L', icon: <Slash size={18} /> },
   { id: 'perpendicular', label: 'Perpendicular', shortcut: 'P', icon: <PerpendicularIcon /> },
   { id: 'parallel', label: 'Paralela', shortcut: 'R', icon: <ParallelIcon /> },
+  { id: 'bisector', label: 'Mediatriz', shortcut: 'D', icon: <BisectorIcon /> },
   { id: 'compass', label: 'Compás', shortcut: 'C', icon: <DraftingCompass size={18} /> },
   { id: 'arc', label: 'Arco', shortcut: 'A', icon: <ArcIcon /> },
   { id: 'escuadra', label: 'Escuadra', shortcut: 'E', icon: <EscuadraIcon /> },

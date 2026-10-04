@@ -11,6 +11,7 @@ const TOOL_KEYS: Record<string, ToolId> = {
   l: 'line',
   p: 'perpendicular',
   r: 'parallel',
+  d: 'bisector',
   c: 'compass',
   a: 'arc',
   e: 'escuadra',

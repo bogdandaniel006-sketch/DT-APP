@@ -29,7 +29,7 @@ import { ShapesLayer } from './ShapesLayer'
 const HIT_PX = 7
 const INSTRUMENTS: InstrumentKind[] = ['escuadra', 'cartabon']
 /** Tools that place points precisely: the loupe follows the cursor with them. */
-const PRECISION_TOOLS = new Set(['select', 'point', 'line', 'perpendicular', 'parallel', 'compass', 'arc', 'measure-distance', 'measure-angle'])
+const PRECISION_TOOLS = new Set(['select', 'point', 'line', 'perpendicular', 'parallel', 'bisector', 'compass', 'arc', 'measure-distance', 'measure-angle'])
 
 export const Workspace = ({ spaceDown }: { spaceDown: boolean }) => {
   const container = useRef<HTMLDivElement>(null)
