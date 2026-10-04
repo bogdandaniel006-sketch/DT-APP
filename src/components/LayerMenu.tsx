@@ -1,5 +1,5 @@
 import { Check, Eye, EyeOff, Layers, Lock } from 'lucide-react'
-import { LAYERS } from '../canvas/style'
+import { LAYER_PENCIL, LAYERS } from '../canvas/style'
 import { appStore } from '../state/appStore'
 import { useStore } from '../state/createStore'
 import type { LayerId } from '../types'
@@ -29,6 +29,14 @@ export const LayerMenu = () => {
   const toggle = (id: LayerId) =>
     appStore.set({ hiddenLayers: hidden.includes(id) ? hidden.filter((h) => h !== id) : [...hidden, id], selection: [] })
 
+  /** Switching layer also picks its usual pencil; the picker can still override it. */
+  const select = (id: LayerId) =>
+    appStore.set({
+      layer: id,
+      hiddenLayers: hidden.filter((h) => h !== id),
+      ...(id !== layer && { pencil: LAYER_PENCIL[id] }),
+    })
+
   return (
     <Popover
       side="right"
@@ -49,8 +57,8 @@ export const LayerMenu = () => {
                 role="menuitemradio"
                 aria-checked={active}
                 tabIndex={0}
-                onClick={() => appStore.set({ layer: l.id, hiddenLayers: hidden.filter((h) => h !== l.id) })}
-                onKeyDown={(e) => e.key === 'Enter' && appStore.set({ layer: l.id })}
+                onClick={() => select(l.id)}
+                onKeyDown={(e) => e.key === 'Enter' && select(l.id)}
                 className="flex cursor-pointer items-center gap-2 rounded-lg py-1 pl-2.5 pr-1 text-[13px] outline-none transition-colors hover:bg-black/[0.04] focus-visible:bg-black/[0.04]"
               >
                 <span className="grid w-4 place-items-center text-accent">{active && <Check size={14} strokeWidth={2.5} />}</span>
