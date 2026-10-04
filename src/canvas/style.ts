@@ -24,8 +24,8 @@ export const LAYER_OPACITY: Record<LayerId, number> = {
 /** Pencil picked automatically when switching to each layer. */
 export const LAYER_PENCIL: Record<LayerId, Pencil> = {
   construccion: { width: 0.25, hardness: '2H' },
-  auxiliares: { width: 0.5, hardness: 'H' },
-  resultado: { width: 0.5, hardness: 'HB' },
+  auxiliares: { width: 0.35, hardness: 'H' },
+  resultado: { width: 0.35, hardness: 'HB' },
 }
 
 export const LAYERS: { id: LayerId; name: string }[] = [
