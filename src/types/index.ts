@@ -31,6 +31,8 @@ export type PencilHardness = '2H' | 'H' | 'HB'
 export interface Pencil {
   width: PencilWidth
   hardness: PencilHardness
+  /** Dashed stroke. Only ever set by hand: no layer or default turns it on. */
+  dashed?: boolean
 }
 
 /** Everything stored in the document, in the coordinates of its page. */

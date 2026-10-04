@@ -4,19 +4,7 @@ import { goToPage } from '../state/actions'
 import { appStore, flipInstrument, setTool, viewActions } from '../state/appStore'
 import { documentActions } from '../state/documentStore'
 import { bumpTools, tools } from '../tools/registry'
-import type { ToolId } from '../types'
-
-const TOOL_KEYS: Record<string, ToolId> = {
-  v: 'select',
-  l: 'line',
-  p: 'perpendicular',
-  r: 'parallel',
-  d: 'bisector',
-  c: 'compass',
-  a: 'arc',
-  e: 'escuadra',
-  t: 'cartabon',
-}
+import { shortcutFor } from '../state/shortcuts'
 
 const isTyping = (target: EventTarget | null) =>
   target instanceof HTMLElement && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))
@@ -72,12 +60,15 @@ export const useKeyboard = (enabled: boolean): boolean => {
       }
       if (e.altKey || e.shiftKey) return
       const current = appStore.get().tool
-      if (e.key === '.') return setTool('point')
-      if (key === 'm') return setTool(current === 'measure-distance' ? 'measure-angle' : 'measure-distance')
-      if (key === 'z') return appStore.set({ loupe: !appStore.get().loupe })
-      if (key === 'f' && (current === 'escuadra' || current === 'cartabon')) return flipInstrument(current)
-      const tool = TOOL_KEYS[key]
-      if (tool) setTool(tool)
+      const action = shortcutFor(key)
+      if (!action) return
+      if (action === 'measure-distance') return setTool(current === 'measure-distance' ? 'measure-angle' : 'measure-distance')
+      if (action === 'loupe') return appStore.set({ loupe: !appStore.get().loupe })
+      if (action === 'flip') {
+        if (current === 'escuadra' || current === 'cartabon') flipInstrument(current)
+        return
+      }
+      setTool(action)
     }
     const onKeyUp = (e: KeyboardEvent) => {
       if (e.key === ' ') setSpaceDown(false)

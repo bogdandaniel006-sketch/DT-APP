@@ -4,6 +4,7 @@ import { measurements, shapeName } from '../geometry/shapes'
 import { appStore, flipInstrument, hideInstrument, setTool } from '../state/appStore'
 import { useStore } from '../state/createStore'
 import { documentActions, documentStore } from '../state/documentStore'
+import { shortcutLabel, shortcutStore } from '../state/shortcuts'
 import { toolTick, tools } from '../tools/registry'
 import { isGeometry, type Pencil, type PencilHardness, type PencilWidth, type ToolId } from '../types'
 import { distance } from '../geometry/primitives'
@@ -24,6 +25,10 @@ const HARDNESS = [
   { value: 'H', label: 'H' },
   { value: 'HB', label: 'HB' },
 ] as const
+const STROKES = [
+  { value: 'solid', label: 'Continua' },
+  { value: 'dashed', label: 'Discontinua' },
+] as const
 
 const Divider = () => <div className="h-5 w-px bg-black/[0.07]" />
 
@@ -41,6 +46,12 @@ const PencilPicker = ({ pencil, onChange }: { pencil: Pencil; onChange: (p: Penc
       value={pencil.hardness}
       options={HARDNESS}
       onChange={(hardness) => onChange({ ...pencil, hardness })}
+    />
+    <Segmented<'solid' | 'dashed'>
+      label="Trazo"
+      value={pencil.dashed ? 'dashed' : 'solid'}
+      options={STROKES}
+      onChange={(stroke) => onChange({ ...pencil, dashed: stroke === 'dashed' })}
     />
   </div>
 )
@@ -161,7 +172,10 @@ const SelectionInfo = ({ ids }: { ids: readonly string[] }) => {
   const single = selected.length === 1
   const geometry = selected.filter(isGeometry)
   const samePencil = geometry.every(
-    (s) => s.pencil.width === first.pencil.width && s.pencil.hardness === first.pencil.hardness,
+    (s) =>
+      s.pencil.width === first.pencil.width &&
+      s.pencil.hardness === first.pencil.hardness &&
+      !s.pencil.dashed === !first.pencil.dashed,
   )
   // Contextual facts, read from the exact document coordinates.
   let info: string[] = single ? measurements(first) : []
@@ -219,6 +233,7 @@ export const ContextBar = () => {
   useStore(appStore, (s) => s.measuring)
   useStore(appStore, (s) => s.compassRadius)
   useStore(toolTick, (s) => s.n)
+  const flipKey = useStore(shortcutStore, (s) => s.keys.flip)
 
   const hint = tools[tool].hint()
   const showSelection = tool === 'select' && selection.length > 0
@@ -257,7 +272,7 @@ export const ContextBar = () => {
               {instrument && (
                 <>
                   <Divider />
-                  <Tooltip label="Darle la vuelta, como el de verdad" shortcut="F" side="top">
+                  <Tooltip label="Darle la vuelta, como el de verdad" shortcut={shortcutLabel(flipKey)} side="top">
                     <TextButton icon={<FlipVertical2 size={14} />} onClick={() => flipInstrument(instrument)}>
                       Voltear
                     </TextButton>

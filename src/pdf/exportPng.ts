@@ -28,8 +28,9 @@ export const exportPng = async (shapes: readonly Shape[], pageIndex: number, inc
   for (const s of shapes) {
     // Measures are on-screen annotations, not part of the drawing.
     if (s.page !== pageIndex || !isGeometry(s)) continue
-    const { color, width } = pencilStroke(s.pencil)
+    const { color, width, dash } = pencilStroke(s.pencil)
     ctx.globalAlpha = LAYER_OPACITY[s.layer]
+    ctx.setLineDash(dash ?? [])
     const path = new Path2D(geometryPath(s, mmToPt(0.5)))
     if (s.kind === 'point') {
       ctx.fillStyle = color

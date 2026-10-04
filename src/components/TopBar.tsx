@@ -6,6 +6,7 @@ import { goToStart, loadPdfFile, saveProject } from '../state/actions'
 import { appStore, viewActions, zoomPercent } from '../state/appStore'
 import { useStore } from '../state/createStore'
 import { documentActions, documentStore } from '../state/documentStore'
+import { shortcutLabel, shortcutStore } from '../state/shortcuts'
 import { pickPdf } from '../utils/filePicker'
 import { ControlsMenu } from './ControlsMenu'
 import { Credit } from './Credit'
@@ -228,8 +229,9 @@ const ZoomMenu = () => {
 
 const LoupeToggle = () => {
   const loupe = useStore(appStore, (s) => s.loupe)
+  const key = useStore(shortcutStore, (s) => s.keys.loupe)
   return (
-    <IconButton label={loupe ? 'Lupa de precisión: activada' : 'Lupa de precisión'} shortcut="Z" active={loupe} onClick={() => appStore.set({ loupe: !loupe })}>
+    <IconButton label={loupe ? 'Lupa de precisión: activada' : 'Lupa de precisión'} shortcut={shortcutLabel(key)} active={loupe} onClick={() => appStore.set({ loupe: !loupe })}>
       <ScanSearch size={18} />
     </IconButton>
   )

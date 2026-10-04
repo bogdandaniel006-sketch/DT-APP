@@ -102,8 +102,9 @@ export const Loupe = ({ cursor, view, rects, shapes, snap, viewport }: Props) =>
     ctx.lineCap = 'round'
     ctx.lineJoin = 'round'
     for (const s of shapes) {
-      const { color, width } = pencilStroke(s.pencil)
+      const { color, width, dash } = pencilStroke(s.pencil)
       ctx.globalAlpha = LAYER_OPACITY[s.layer]
+      ctx.setLineDash(dash ?? [])
       const path = new Path2D(geometryPath(s, mmToPt(0.5)))
       if (s.kind === 'point') {
         ctx.fillStyle = color
@@ -115,6 +116,7 @@ export const Loupe = ({ cursor, view, rects, shapes, snap, viewport }: Props) =>
       }
     }
     ctx.globalAlpha = 1
+    ctx.setLineDash([])
 
     // Crosshair on the exact point, and where the raw cursor is when it was pulled by a snap.
     ctx.setTransform(1, 0, 0, 1, 0, 0)

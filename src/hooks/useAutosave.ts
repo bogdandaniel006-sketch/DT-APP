@@ -11,7 +11,8 @@ type Settings = Pick<AppState, 'pencil' | 'layer' | 'snapMode' | 'loupe' | 'meas
 export const useAutosave = () => {
   useEffect(() => {
     const settings = loadSettings<Settings>()
-    if (settings.pencil) appStore.set({ pencil: settings.pencil })
+    // The dashed stroke is never picked automatically, not even from the last session.
+    if (settings.pencil) appStore.set({ pencil: { ...settings.pencil, dashed: false } })
     if (settings.layer) appStore.set({ layer: settings.layer })
     if (settings.snapMode) appStore.set({ snapMode: settings.snapMode })
     if (typeof settings.loupe === 'boolean') appStore.set({ loupe: settings.loupe })

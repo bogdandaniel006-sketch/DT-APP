@@ -18,7 +18,7 @@ interface Props {
 export const ShapesLayer = memo(({ shapes, selection, scale }: Props) => (
   <g strokeLinecap="round" strokeLinejoin="round" fill="none">
     {shapes.map((s) => {
-      const { color, width } = pencilStroke(s.pencil)
+      const { color, width, dash } = pencilStroke(s.pencil)
       const selected = selection.has(s.id)
       const stroke = selected ? ACCENT : color
       const opacity = selected ? 1 : LAYER_OPACITY[s.layer]
@@ -52,6 +52,7 @@ export const ShapesLayer = memo(({ shapes, selection, scale }: Props) => (
           d={geometryPath(s)}
           stroke={stroke}
           strokeWidth={Math.max(width, MIN_SCREEN_WIDTH / scale) * (selected ? 1.15 : 1)}
+          strokeDasharray={dash?.join(' ')}
           opacity={opacity}
         />
       )

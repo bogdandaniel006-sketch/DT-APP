@@ -9,10 +9,14 @@ const GRAPHITE: Record<Pencil['hardness'], string> = {
   HB: '#1F2329',
 }
 
+/** Dashed strokes: dash and gap on paper, as drawn by hand for hidden lines. */
+const DASH: readonly [number, number] = [mmToPt(3), mmToPt(1.5)]
+
 /** Pencil look: width is the real lead width on paper; the softer the lead, the darker (2H < H < HB). */
 export const pencilStroke = (pencil: Pencil) => ({
   color: GRAPHITE[pencil.hardness],
   width: mmToPt(pencil.width),
+  dash: pencil.dashed ? DASH : null,
 })
 
 export const LAYER_OPACITY: Record<LayerId, number> = {

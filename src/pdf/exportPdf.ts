@@ -34,7 +34,8 @@ export const exportPdf = async (shapes: readonly Shape[]) => {
     }
 
     for (const s of onPage) {
-      const { color, width } = pencilStroke(s.pencil)
+      const { color, width, dash } = pencilStroke(s.pencil)
+      const dashArray = dash ? [...dash] : undefined
       const style = { color: hexToRgb(color), opacity: LAYER_OPACITY[s.layer] }
       switch (s.kind) {
         case 'segment':
@@ -45,11 +46,12 @@ export const exportPdf = async (shapes: readonly Shape[]) => {
             color: style.color,
             opacity: style.opacity,
             lineCap: LineCapStyle.Round,
+            dashArray,
           })
           break
         case 'circle': {
           const c = toPdf(s.c)
-          page.drawCircle({ x: c.x, y: c.y, size: s.r, borderWidth: width, borderColor: style.color, borderOpacity: style.opacity })
+          page.drawCircle({ x: c.x, y: c.y, size: s.r, borderWidth: width, borderColor: style.color, borderOpacity: style.opacity, borderDashArray: dashArray })
           break
         }
         case 'point': {
@@ -77,6 +79,7 @@ export const exportPdf = async (shapes: readonly Shape[]) => {
             borderColor: style.color,
             borderOpacity: style.opacity,
             borderLineCap: LineCapStyle.Round,
+            borderDashArray: dashArray,
           })
         }
       }
