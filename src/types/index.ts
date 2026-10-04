@@ -25,8 +25,8 @@ export type Drawable = Geometry | Measure
 
 export type LayerId = 'construccion' | 'auxiliares' | 'resultado'
 
-export type PencilWidth = 0.35 | 0.5
-export type PencilHardness = 'H' | 'HB'
+export type PencilWidth = 0.25 | 0.35 | 0.5
+export type PencilHardness = '2H' | 'H' | 'HB'
 
 export interface Pencil {
   width: PencilWidth

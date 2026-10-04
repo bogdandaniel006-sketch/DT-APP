@@ -64,7 +64,7 @@ export const appStore = createStore<AppState>({
   viewport: { w: 1, h: 1 },
   view: { scale: 1, x: 0, y: 0 },
   tool: 'line',
-  pencil: { width: 0.35, hardness: 'H' },
+  pencil: { width: 0.25, hardness: '2H' },
   layer: 'construccion',
   hiddenLayers: [],
   pdfVisible: true,

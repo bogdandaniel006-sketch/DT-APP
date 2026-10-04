@@ -15,10 +15,12 @@ import { Tooltip } from './ui/Tooltip'
 const PENCIL_TOOLS: readonly ToolId[] = ['point', 'line', 'perpendicular', 'parallel', 'bisector', 'compass', 'arc', 'escuadra', 'cartabon']
 
 const WIDTHS = [
+  { value: 0.25, label: '0,25' },
   { value: 0.35, label: '0,35' },
   { value: 0.5, label: '0,50' },
 ] as const
 const HARDNESS = [
+  { value: '2H', label: '2H' },
   { value: 'H', label: 'H' },
   { value: 'HB', label: 'HB' },
 ] as const
