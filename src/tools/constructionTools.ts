@@ -10,7 +10,7 @@ import {
   segment,
   type Segment,
 } from '../geometry/primitives'
-import type { SnapResult } from '../geometry/snapping'
+import type { SnapKind, SnapResult } from '../geometry/snapping'
 import { add, dot, scale, sub } from '../geometry/vec'
 import type { Vec } from '../types'
 import { segmentOverlays, snapOverlay } from './overlays'
@@ -31,6 +31,9 @@ const rightAngleAt = (foot: Vec, base: Segment, towards: Vec): Overlay => {
   const n = sub(towards, foot)
   return { kind: 'angle', mark: angleMark(foot, Math.atan2(along.y, along.x), Math.atan2(n.y, n.x)) }
 }
+
+/** Snaps to a stroke rather than to a point: a point near the foot of the perpendicular wins over them. */
+const LOOSE_SNAPS: ReadonlySet<SnapKind> = new Set<SnapKind>(['on-line', 'on-circle', 'edge'])
 
 /**
  * Perpendicular: pick a line, then a point. Off the line → segment from the
@@ -64,10 +67,9 @@ export const createPerpendicularTool = (): Tool => {
         hover = null
         return
       }
-      const p = snap?.p ?? e.world
+      const p = cursor ?? e.world
       if (through) {
-        // The snap already lies on the perpendicular: projecting it again would only add rounding.
-        const end = snap ? snap.p : lengthEnd(p)
+        const end = lengthEnd(p)
         if (end && distance(through, end) > api.px(2)) api.create([segment(through, end)])
         reset()
         return
@@ -78,20 +80,26 @@ export const createPerpendicularTool = (): Tool => {
         reset()
       } else {
         through = perp.b
-        snap = null
       }
     },
     move(e, api) {
       if (!base) {
         hover = pickLine(api, e.world)
         snap = null
+        cursor = null
         return
       }
-      // Setting the length: the end slides along the perpendicular and stops at what it meets.
-      snap = through
-        ? api.snapAlong(e.world, through, normalOf(base), baseId ? new Set([baseId]) : undefined)
-        : api.snap(e.world)
+      snap = api.snap(e.world)
       cursor = snap.p
+      if (through || (snap.kind && !LOOSE_SNAPS.has(snap.kind))) return
+      // Away from the line: the foot is drawn to a point of the line close to it, so the
+      // perpendicular passes exactly through that point.
+      const foot = projectPointOnLine(e.world, base.a, base.b)
+      if (distance(foot, e.world) <= api.px(3)) return
+      const at = api.snapAlong(e.world, base.a, sub(base.b, base.a))
+      if (!at.kind) return
+      snap = at
+      cursor = add(at.p, sub(e.world, foot))
     },
     up() {},
     cancel() {
@@ -122,8 +130,8 @@ export const createPerpendicularTool = (): Tool => {
     },
     hint() {
       if (!base) return 'Selecciona la recta de referencia'
-      if (through) return 'Clic para fijar la longitud · se ajusta a los puntos y líneas que cruza'
-      return 'Selecciona el punto por el que pasa la perpendicular'
+      if (through) return 'Clic para fijar la longitud de la perpendicular'
+      return 'Selecciona el punto por el que pasa la perpendicular · el pie se ajusta a los puntos de la recta'
     },
   }
 }
