@@ -66,7 +66,8 @@ export const createPerpendicularTool = (): Tool => {
       }
       const p = snap?.p ?? e.world
       if (through) {
-        const end = lengthEnd(p)
+        // The snap already lies on the perpendicular: projecting it again would only add rounding.
+        const end = snap ? snap.p : lengthEnd(p)
         if (end && distance(through, end) > api.px(2)) api.create([segment(through, end)])
         reset()
         return
@@ -77,6 +78,7 @@ export const createPerpendicularTool = (): Tool => {
         reset()
       } else {
         through = perp.b
+        snap = null
       }
     },
     move(e, api) {
@@ -85,7 +87,10 @@ export const createPerpendicularTool = (): Tool => {
         snap = null
         return
       }
-      snap = api.snap(e.world)
+      // Setting the length: the end slides along the perpendicular and stops at what it meets.
+      snap = through
+        ? api.snapAlong(e.world, through, normalOf(base), baseId ? new Set([baseId]) : undefined)
+        : api.snap(e.world)
       cursor = snap.p
     },
     up() {},
@@ -117,7 +122,7 @@ export const createPerpendicularTool = (): Tool => {
     },
     hint() {
       if (!base) return 'Selecciona la recta de referencia'
-      if (through) return 'Clic para fijar la longitud de la perpendicular'
+      if (through) return 'Clic para fijar la longitud · se ajusta a los puntos y líneas que cruza'
       return 'Selecciona el punto por el que pasa la perpendicular'
     },
   }

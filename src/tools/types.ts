@@ -9,6 +9,8 @@ export interface ToolPointer {
   screen: Vec
   shift: boolean
   alt: boolean
+  /** Ctrl, or ⌘ on a Mac. */
+  ctrl: boolean
 }
 
 /** Transient visuals a tool asks the canvas to draw (desk coordinates). */
@@ -40,6 +42,11 @@ export interface ToolApi {
   px(n: number): number
   /** Snaps to drawn shapes (minus `exclude`), PDF geometry and, unless disabled, instrument edges. */
   snap(p: Vec, exclude?: ReadonlySet<string>, withInstruments?: boolean): SnapResult
+  /**
+   * Snaps without leaving the line through `origin` with direction `dir`: the result is the
+   * projection of p, moved to where the line cuts nearby geometry or to a point lying on it.
+   */
+  snapAlong(p: Vec, origin: Vec, dir: Vec, exclude?: ReadonlySet<string>): SnapResult
   hit(p: Vec, filter?: (s: Shape) => boolean): Shape | null
   /** A drawn segment or a line of the PDF under p. */
   lineAt(p: Vec): ReferenceLine | null

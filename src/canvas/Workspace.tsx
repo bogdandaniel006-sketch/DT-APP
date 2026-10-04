@@ -4,8 +4,8 @@ import { instrumentEdges } from '../geometry/instruments'
 import { pageAt, pageOffset } from '../geometry/layout'
 import { distanceToSegment, type Segment } from '../geometry/primitives'
 import { anchorOf, hitTest, translateGeometry } from '../geometry/shapes'
-import { SNAP_RADIUS_PX, snap as snapPoint, type SnapPoint } from '../geometry/snapping'
-import { add, scale, sub } from '../geometry/vec'
+import { SNAP_RADIUS_PX, snapAlongLine, snap as snapPoint, type SnapPoint } from '../geometry/snapping'
+import { add, dot, normalize, scale, sub } from '../geometry/vec'
 import { detectedLineAt, detectedNear, detectionStore } from '../pdf/detect'
 import { appStore, viewActions } from '../state/appStore'
 import { useStore } from '../state/createStore'
@@ -95,6 +95,13 @@ export const Workspace = ({ spaceDown }: { spaceDown: boolean }) => {
         const geoms = exclude ? geometryShapes.filter((s) => !exclude.has(s.id)) : geometryShapes
         return snapPoint(p, { geoms, edges: withInstruments ? edges : [], pdf: pdfNear(p, radius) }, radius, snapMode)
       },
+      snapAlong(p, origin, dir, exclude) {
+        const radius = px(SNAP_RADIUS_PX[snapMode])
+        const unit = normalize(dir)
+        const on = add(origin, scale(unit, dot(sub(p, origin), unit)))
+        const geoms = exclude ? geometryShapes.filter((s) => !exclude.has(s.id)) : geometryShapes
+        return snapAlongLine(on, unit, { geoms, edges, pdf: pdfNear(on, radius) }, radius, snapMode)
+      },
       hit: (p, filter) => hitTest(shapes, p, px(HIT_PX), filter),
       lineAt(p) {
         const own = hitTest(geometryShapes, p, px(HIT_PX), (s) => s.kind === 'segment')
@@ -176,7 +183,7 @@ export const Workspace = ({ spaceDown }: { spaceDown: boolean }) => {
   const pointer = useCallback(
     (e: ReactPointerEvent): ToolPointer => {
       const screen = localPoint(container.current!, e.clientX, e.clientY)
-      return { screen, world: screenToDesk(view, screen), shift: e.shiftKey, alt: e.altKey }
+      return { screen, world: screenToDesk(view, screen), shift: e.shiftKey, alt: e.altKey, ctrl: e.ctrlKey || e.metaKey }
     },
     [view],
   )

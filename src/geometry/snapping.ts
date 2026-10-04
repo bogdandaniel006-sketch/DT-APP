@@ -1,7 +1,8 @@
 import type { Geometry, SnapMode, Vec } from '../types'
 import { intersection } from './intersections'
-import { closestPoint, distance, midpoint, type Segment } from './primitives'
+import { closestPoint, distance, midpoint, segment, type Segment } from './primitives'
 import { keyPoints, type KeyPointKind } from './shapes'
+import { add, dot, scale, sub } from './vec'
 
 export type SnapKind = KeyPointKind | 'intersection' | 'vertex' | 'on-line' | 'on-circle' | 'edge'
 
@@ -121,10 +122,8 @@ export const snapToIntersection = (p: Vec, geoms: readonly Geometry[], tol: numb
 
 const curveKind = (g: Geometry): SnapKind => (g.kind === 'segment' ? 'on-line' : 'on-circle')
 
-/** Full snap: explicit points and intersections by priority, then the nearest stroke. */
-export const snap = (p: Vec, targets: SnapTargets, tol: number, mode: SnapMode = 'normal'): SnapResult => {
-  if (mode === 'libre' || tol <= 0) return { p, kind: null }
-
+/** Every explicit point of the targets: key points of the drawing, instrument vertices and PDF points. */
+const targetPoints = (targets: SnapTargets): SnapPoint[] => {
   const points: SnapPoint[] = []
   for (const g of targets.geoms) {
     for (const k of keyPoints(g)) {
@@ -133,12 +132,21 @@ export const snap = (p: Vec, targets: SnapTargets, tol: number, mode: SnapMode =
   }
   for (const e of targets.edges) points.push({ p: e.a, kind: 'vertex', source: 'instrument' })
   if (targets.pdf) points.push(...targets.pdf.points)
+  return points
+}
 
-  const curves: SnapCurve[] = [
-    ...targets.geoms.filter((g) => g.kind !== 'point').map((geom) => ({ geom, source: 'drawing' as const })),
-    ...targets.edges.map((geom) => ({ geom, source: 'instrument' as const })),
-    ...(targets.pdf?.curves ?? []).map((geom) => ({ geom, source: 'pdf' as const })),
-  ]
+const targetCurves = (targets: SnapTargets): SnapCurve[] => [
+  ...targets.geoms.filter((g) => g.kind !== 'point').map((geom) => ({ geom, source: 'drawing' as const })),
+  ...targets.edges.map((geom) => ({ geom, source: 'instrument' as const })),
+  ...(targets.pdf?.curves ?? []).map((geom) => ({ geom, source: 'pdf' as const })),
+]
+
+/** Full snap: explicit points and intersections by priority, then the nearest stroke. */
+export const snap = (p: Vec, targets: SnapTargets, tol: number, mode: SnapMode = 'normal'): SnapResult => {
+  if (mode === 'libre' || tol <= 0) return { p, kind: null }
+
+  const points = targetPoints(targets)
+  const curves = targetCurves(targets)
   points.push(...intersectionsNear(p, curves, tol))
 
   const hit = snapToPoint(p, points, tol, mode)
@@ -158,6 +166,28 @@ export const snap = (p: Vec, targets: SnapTargets, tol: number, mode: SnapMode =
     }
   }
   return found ?? { p, kind: null }
+}
+
+/** How far off the line (as a fraction of the tolerance) a point may lie and still be snapped to. */
+const ON_LINE_FRACTION = 0.25
+
+/**
+ * Snap that never leaves a line: `p` lies on it and `dir` is its unit direction.
+ * It stops where the line cuts a nearby stroke and at points lying on the line.
+ */
+export const snapAlongLine = (p: Vec, dir: Vec, targets: SnapTargets, tol: number, mode: SnapMode = 'normal'): SnapResult => {
+  if (mode === 'libre' || tol <= 0) return { p, kind: null }
+
+  const points: SnapPoint[] = []
+  for (const k of targetPoints(targets)) {
+    const q = add(p, scale(dir, dot(sub(k.p, p), dir)))
+    if (distance(k.p, q) <= tol * ON_LINE_FRACTION) points.push({ ...k, p: q })
+  }
+  const probe = segment(sub(p, scale(dir, tol)), add(p, scale(dir, tol)))
+  for (const c of targetCurves(targets)) {
+    for (const q of intersection(probe, c.geom)) points.push({ p: q, kind: 'intersection', source: c.source })
+  }
+  return snapToPoint(p, points, tol, mode) ?? { p, kind: null }
 }
 
 /** Short description for the indicator next to the cursor: "A", "Intersección · PDF"… */

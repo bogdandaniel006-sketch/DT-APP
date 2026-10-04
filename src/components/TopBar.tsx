@@ -7,6 +7,7 @@ import { appStore, viewActions, zoomPercent } from '../state/appStore'
 import { useStore } from '../state/createStore'
 import { documentActions, documentStore } from '../state/documentStore'
 import { pickPdf } from '../utils/filePicker'
+import { ControlsMenu } from './ControlsMenu'
 import { Credit } from './Credit'
 import { Logo } from './Logo'
 import { IconButton } from './ui/IconButton'
@@ -283,6 +284,7 @@ export const TopBar = () => {
         <LoupeToggle />
         <div className="mx-1.5 h-5 w-px bg-black/[0.07]" />
         <ZoomMenu />
+        <ControlsMenu />
       </div>
     </header>
   )

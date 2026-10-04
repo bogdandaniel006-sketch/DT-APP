@@ -3,7 +3,7 @@ import { angle, arcEndPoint, arcStartPoint, circleFromCenterRadius, distance, po
 import { intersection } from '../geometry/intersections'
 import { anchorOf, bounds, boundsInside, keyPoints, measurements, outlineOf, translateGeometry } from '../geometry/shapes'
 import { SNAP_RADIUS_PX, type SnapResult } from '../geometry/snapping'
-import { normAngle, scale, sub } from '../geometry/vec'
+import { EPS, length, normAngle, scale, sub } from '../geometry/vec'
 import { appStore } from '../state/appStore'
 import { documentActions, documentStore } from '../state/documentStore'
 import { isGeometry, type Shape, type Vec } from '../types'
@@ -76,7 +76,12 @@ export const createSelectTool = (): Tool => {
     if (base.kind === 'segment') {
       const fixed = kind === 'a' ? base.b : base.a
       let p: Vec
-      if (e.shift) {
+      const along = sub(kind === 'a' ? base.a : base.b, fixed)
+      if (e.ctrl && length(along) > EPS) {
+        // Ctrl: the line keeps its direction and only gets longer or shorter.
+        snap = api.snapAlong(e.world, fixed, along, exclude)
+        p = snap.p
+      } else if (e.shift) {
         p = constrainDirection(fixed, e.world, { lockStep: SHIFT_STEP }).p
         snap = null
       } else {
@@ -259,7 +264,9 @@ export const createSelectTool = (): Tool => {
       if (!sel.length) return 'Clic en un trazo para seleccionarlo · arrastra para seleccionar varios'
       if (drag?.mode === 'handle') return drag.handle.kind === 'start' || drag.handle.kind === 'end'
         ? 'El extremo recorre la circunferencia · se ajusta a puntos e intersecciones'
-        : null
+        : drag.handle.kind === 'a' || drag.handle.kind === 'b'
+          ? 'Ctrl alarga la línea sin cambiar su dirección · Shift bloquea el ángulo'
+          : null
       return null
     },
     cursor() {
