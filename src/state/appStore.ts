@@ -28,6 +28,8 @@ export interface AppState {
   compassRadius: number | null
   measuring: boolean
   savedAt: number | null
+  /** The last autosave could not be written (storage full or blocked). */
+  saveFailed: boolean
   snapMode: SnapMode
   /** Precision loupe following the cursor. */
   loupe: boolean
@@ -71,6 +73,7 @@ export const appStore = createStore<AppState>({
   compassRadius: null,
   measuring: false,
   savedAt: null,
+  saveFailed: false,
   snapMode: 'normal',
   loupe: false,
   measuresVisible: true,

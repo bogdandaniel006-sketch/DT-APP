@@ -1,20 +1,27 @@
 import { layoutPages } from '../geometry/layout'
 import { startDetection } from '../pdf/detect'
-import { openPdf, pageSizes } from '../pdf/session'
+import { getSession, openPdf, pageSizes } from '../pdf/session'
 import { cancelAllTools } from '../tools/registry'
+import type { Shape } from '../types'
+import { baseName, downloadBlob } from '../utils/download'
+import { decodeProject, encodeProject, isProject, PROJECT_EXTENSION } from '../utils/project'
 import { loadDrawing, loadLastPdf, saveLastPdf } from '../utils/storage'
 import { appStore, viewActions } from './appStore'
-import { documentActions } from './documentStore'
+import { documentActions, documentStore } from './documentStore'
 
 const nextFrame = () => new Promise((r) => requestAnimationFrame(() => r(undefined)))
 
 /** Opens a PDF and restores the drawing previously made on it, if any. */
-export const loadPdf = async (bytes: Uint8Array, name: string, options: { remember?: boolean } = {}) => {
+export const loadPdf = async (
+  bytes: Uint8Array,
+  name: string,
+  options: { remember?: boolean; drawing?: { shapes: Shape[]; page: number } } = {},
+) => {
   const previousPhase = appStore.get().phase
   appStore.set({ phase: 'loading', error: null })
   try {
     const session = await openPdf(bytes, name)
-    const saved = loadDrawing(session.fingerprint)
+    const saved = options.drawing ?? loadDrawing(session.fingerprint)
     const pageCount = session.doc.numPages
     const page = Math.min(saved?.page ?? 0, pageCount - 1)
     const pageRects = layoutPages(await pageSizes())
@@ -44,7 +51,21 @@ export const loadPdf = async (bytes: Uint8Array, name: string, options: { rememb
 
 export const loadPdfFile = async (file: File) => {
   const bytes = new Uint8Array(await file.arrayBuffer())
-  await loadPdf(bytes, file.name)
+  if (!isProject(bytes)) return loadPdf(bytes, file.name)
+  const project = decodeProject(bytes)
+  if (!project) {
+    appStore.set({ error: 'No se ha podido abrir el proyecto. El archivo está dañado.' })
+    return
+  }
+  await loadPdf(project.bytes, project.name, { drawing: project })
+}
+
+/** Downloads the open PDF and its editable drawing as one project file. */
+export const saveProject = () => {
+  const session = getSession()
+  if (!session) return
+  const project = { name: session.name, bytes: session.bytes, shapes: [...documentStore.get().shapes], page: appStore.get().page }
+  downloadBlob(encodeProject(project), baseName(session.name) + PROJECT_EXTENSION)
 }
 
 /** On start-up, reopen the last PDF so accidental closes lose nothing. */
@@ -55,6 +76,21 @@ export const restoreLastSession = async () => {
     return
   }
   await loadPdf(last.bytes, last.name, { remember: false })
+}
+
+/** Leaves the desk for the start screen. The PDF stays open so the work can be resumed. */
+export const goToStart = () => {
+  cancelAllTools()
+  appStore.set({ phase: 'start', error: null, selection: [], naming: null, measuring: false })
+}
+
+/** Back to the desk from the start screen, on the PDF that was left open. */
+export const resumeWorkspace = async () => {
+  const { fingerprint, page } = appStore.get()
+  if (!fingerprint) return
+  appStore.set({ phase: 'ready', error: null })
+  await nextFrame()
+  viewActions.fitPage(page)
 }
 
 /** Brings a sheet into view. Constructions in progress are kept: pages share one desk. */

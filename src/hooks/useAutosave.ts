@@ -24,6 +24,16 @@ export const useAutosave = () => {
     }
     let last = snapshot()
 
+    /** The save waiting for its delay, if any. */
+    let pending: (() => void) | null = null
+    let askedToPersist = false
+
+    const flush = () => {
+      clearTimeout(timer)
+      pending?.()
+      pending = null
+    }
+
     const schedule = () => {
       const { phase, fingerprint } = appStore.get()
       if (phase !== 'ready' || !fingerprint) return
@@ -31,19 +41,35 @@ export const useAutosave = () => {
       if ((Object.keys(now) as (keyof typeof now)[]).every((k) => now[k] === last[k])) return
       last = now
       clearTimeout(timer)
-      timer = setTimeout(() => {
+      pending = () => {
         const { pencil, layer, snapMode, loupe, measuresVisible } = now
         saveSettings({ pencil, layer, snapMode, loupe, measuresVisible } satisfies Settings)
-        if (saveDrawing(fingerprint, now.shapes, now.page)) appStore.set({ savedAt: Date.now() })
-      }, DELAY_MS)
+        const ok = saveDrawing(fingerprint, now.shapes, now.page)
+        appStore.set(ok ? { savedAt: Date.now(), saveFailed: false } : { saveFailed: true })
+        // Ask the browser not to evict the saved work when it runs short of space.
+        if (ok && !askedToPersist) {
+          askedToPersist = true
+          void navigator.storage?.persist?.().catch(() => false)
+        }
+      }
+      timer = setTimeout(flush, DELAY_MS)
+    }
+
+    // Closing or leaving the tab must not lose the strokes still waiting for the delay.
+    const onHide = () => {
+      if (document.visibilityState === 'hidden') flush()
     }
 
     const unsubDoc = documentStore.subscribe(schedule)
     const unsubApp = appStore.subscribe(schedule)
+    window.addEventListener('pagehide', flush)
+    document.addEventListener('visibilitychange', onHide)
     return () => {
       unsubDoc()
       unsubApp()
-      clearTimeout(timer)
+      window.removeEventListener('pagehide', flush)
+      document.removeEventListener('visibilitychange', onHide)
+      flush()
     }
   }, [])
 }

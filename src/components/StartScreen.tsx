@@ -1,6 +1,8 @@
-import { FolderOpen } from 'lucide-react'
+import { ArrowLeft, FolderOpen } from 'lucide-react'
+import { resumeWorkspace } from '../state/actions'
 import { appStore } from '../state/appStore'
 import { useStore } from '../state/createStore'
+import { Credit } from './Credit'
 import { openPdfDialog } from './TopBar'
 
 /** A quiet construction drawing: a triangle, its circumcircle and a few helper arcs. */
@@ -21,6 +23,7 @@ const Illustration = () => (
 export const StartScreen = () => {
   const phase = useStore(appStore, (s) => s.phase)
   const error = useStore(appStore, (s) => s.error)
+  const fileName = useStore(appStore, (s) => s.fileName)
   const loading = phase === 'loading'
 
   return (
@@ -28,6 +31,7 @@ export const StartScreen = () => {
       <div className="flex flex-col items-center text-center animate-pop">
         <Illustration />
         <h1 className="text-[30px] font-semibold tracking-[-0.025em] text-ink">Tu mesa de dibujo técnico</h1>
+        <Credit className="mt-3 text-[24px] tracking-[-0.02em]" />
         <button
           type="button"
           onClick={() => void openPdfDialog()}
@@ -37,7 +41,17 @@ export const StartScreen = () => {
           <FolderOpen size={18} className="text-accent" />
           {loading ? 'Abriendo…' : 'Abrir PDF'}
         </button>
-        <p className="mt-4 text-[13px] text-muted">Abre un ejercicio y empieza a construir.</p>
+        {fileName && !loading && (
+          <button
+            type="button"
+            onClick={() => void resumeWorkspace()}
+            className="mt-3 flex h-9 max-w-[80vw] items-center gap-1.5 rounded-xl px-3 text-[13px] font-medium text-accent outline-none transition-colors hover:bg-accent-soft focus-visible:ring-2 focus-visible:ring-accent/40"
+          >
+            <ArrowLeft size={15} className="shrink-0" />
+            <span className="truncate">Volver a {fileName}</span>
+          </button>
+        )}
+        <p className="mt-4 text-[13px] text-muted">Abre un ejercicio en PDF o un proyecto guardado (.lamina) y empieza a construir.</p>
         {error && <p className="mt-4 text-[13px] text-red-600">{error}</p>}
       </div>
     </main>

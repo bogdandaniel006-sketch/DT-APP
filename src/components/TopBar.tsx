@@ -1,12 +1,13 @@
-import { Check, ChevronDown, Download, FileText, FolderOpen, Image, Magnet, Maximize, Redo2, ScanSearch, Undo2 } from 'lucide-react'
+import { Check, ChevronDown, Download, FileText, FolderOpen, House, Image, Magnet, Maximize, Redo2, Save, ScanSearch, TriangleAlert, Undo2 } from 'lucide-react'
 import { detectionStore, detectionSummary } from '../pdf/detect'
 import type { SnapMode } from '../types'
 import { useState } from 'react'
-import { loadPdfFile } from '../state/actions'
+import { goToStart, loadPdfFile, saveProject } from '../state/actions'
 import { appStore, viewActions, zoomPercent } from '../state/appStore'
 import { useStore } from '../state/createStore'
 import { documentActions, documentStore } from '../state/documentStore'
 import { pickPdf } from '../utils/filePicker'
+import { Credit } from './Credit'
 import { Logo } from './Logo'
 import { IconButton } from './ui/IconButton'
 import { MenuItem, Popover } from './ui/Popover'
@@ -26,6 +27,7 @@ export const openPdfDialog = async () => {
 
 const SaveMenu = () => {
   const savedAt = useStore(appStore, (s) => s.savedAt)
+  const saveFailed = useStore(appStore, (s) => s.saveFailed)
   const [busy, setBusy] = useState(false)
 
   const run = async (job: () => Promise<void>) => {
@@ -67,10 +69,30 @@ const SaveMenu = () => {
               void run(async () => (await import('../pdf/exportPng')).exportPng(visibleShapes(), page, pdfVisible))
             }}
           />
+          <MenuItem
+            icon={<Save size={16} />}
+            label="Guardar proyecto"
+            hint="editable"
+            onSelect={() => {
+              close()
+              saveProject()
+            }}
+          />
           <div className="mx-2 my-1 h-px bg-black/[0.06]" />
-          <p className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11.5px] text-muted">
-            <Check size={13} className="text-accent" />
-            {savedAt ? 'Tu trabajo se guarda automáticamente' : 'Se guardará automáticamente'}
+          {saveFailed ? (
+            <p className="flex items-start gap-1.5 px-2.5 py-1.5 text-[11.5px] leading-snug text-red-600">
+              <TriangleAlert size={13} className="mt-px shrink-0" />
+              El guardado automático ha fallado. Guarda el proyecto para no perder tu trabajo.
+            </p>
+          ) : (
+            <p className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11.5px] text-muted">
+              <Check size={13} className="text-accent" />
+              {savedAt ? 'Tu trabajo se guarda automáticamente' : 'Se guardará automáticamente'}
+            </p>
+          )}
+          <div className="mx-2 my-1 h-px bg-black/[0.06]" />
+          <p className="flex px-2.5 pb-1 pt-1.5">
+            <Credit className="text-[11.5px]" />
           </p>
         </div>
       )}
@@ -214,6 +236,7 @@ const LoupeToggle = () => {
 
 export const TopBar = () => {
   const fileName = useStore(appStore, (s) => s.fileName)
+  const saveFailed = useStore(appStore, (s) => s.saveFailed)
   const canUndo = useStore(documentStore, (s) => s.past.length > 0)
   const canRedo = useStore(documentStore, (s) => s.future.length > 0)
 
@@ -226,10 +249,26 @@ export const TopBar = () => {
         </span>
       )}
       <div className="ml-3 flex items-center gap-0.5">
-        <IconButton label="Abrir PDF" shortcut="Ctrl O" onClick={() => void openPdfDialog()}>
+        <IconButton label="Menú principal" onClick={goToStart}>
+          <House size={18} />
+        </IconButton>
+        <IconButton label="Abrir PDF o proyecto" shortcut="Ctrl O" onClick={() => void openPdfDialog()}>
           <FolderOpen size={18} />
         </IconButton>
         <SaveMenu />
+      </div>
+      {saveFailed && (
+        <button
+          type="button"
+          onClick={saveProject}
+          className="ml-2 flex h-8 items-center gap-1.5 whitespace-nowrap rounded-[10px] bg-red-50 px-2.5 text-[12px] font-medium text-red-600 outline-none transition-colors hover:bg-red-100 focus-visible:ring-2 focus-visible:ring-red-400/40"
+        >
+          <TriangleAlert size={15} />
+          No se está guardando · Descargar copia
+        </button>
+      )}
+      <div className="ml-4 hidden lg:block">
+        <Credit className="text-[12px] opacity-80" />
       </div>
 
       <div className="ml-auto flex items-center gap-0.5">
