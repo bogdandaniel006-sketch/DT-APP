@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { openPdfDialog } from '../components/TopBar'
 import { goToPage } from '../state/actions'
-import { appStore, flipInstrument, setTool, viewActions } from '../state/appStore'
+import { appStore, flipInstrument, setLayer, setTool, viewActions } from '../state/appStore'
 import { documentActions } from '../state/documentStore'
 import { bumpTools, tools } from '../tools/registry'
 import { shortcutFor } from '../state/shortcuts'
@@ -68,6 +68,9 @@ export const useKeyboard = (enabled: boolean): boolean => {
         if (current === 'escuadra' || current === 'cartabon') flipInstrument(current)
         return
       }
+      if (action === 'layer-construccion') return setLayer('construccion')
+      if (action === 'layer-auxiliares') return setLayer('auxiliares')
+      if (action === 'layer-resultado') return setLayer('resultado')
       setTool(action)
     }
     const onKeyUp = (e: KeyboardEvent) => {

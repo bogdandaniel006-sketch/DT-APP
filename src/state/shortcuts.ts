@@ -15,6 +15,9 @@ export const SHORTCUT_ACTIONS = [
   { id: 'measure-distance', label: 'Medir distancia y ángulo', key: 'm' },
   { id: 'flip', label: 'Voltear la escuadra o el cartabón', key: 'f' },
   { id: 'loupe', label: 'Lupa de precisión', key: 'z' },
+  { id: 'layer-construccion', label: 'Capa Construcción', key: '1' },
+  { id: 'layer-auxiliares', label: 'Capa Auxiliares', key: '2' },
+  { id: 'layer-resultado', label: 'Capa Resultado', key: '3' },
 ] as const
 
 export type ShortcutId = (typeof SHORTCUT_ACTIONS)[number]['id']

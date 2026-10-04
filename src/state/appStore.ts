@@ -1,6 +1,7 @@
 import type { InstrumentKind, InstrumentState, LayerId, Pencil, SnapMode, ToolId, Vec, View } from '../types'
 import { pageAt, type PageRect } from '../geometry/layout'
 import { mmToPt, PX_PER_PT } from '../geometry/units'
+import { LAYER_PENCIL } from '../canvas/style'
 import { createStore } from './createStore'
 
 export type Phase = 'boot' | 'start' | 'loading' | 'ready'
@@ -169,6 +170,16 @@ export const setTool = (tool: ToolId) => {
     patch.instruments = { ...instruments, [tool]: placeInstrument(tool) }
   }
   appStore.set(patch)
+}
+
+/** Makes a layer the active one (and visible). Switching also picks its usual pencil; the picker can still override it. */
+export const setLayer = (id: LayerId) => {
+  const { layer, hiddenLayers } = appStore.get()
+  appStore.set({
+    layer: id,
+    hiddenLayers: hiddenLayers.filter((h) => h !== id),
+    ...(id !== layer && { pencil: LAYER_PENCIL[id] }),
+  })
 }
 
 /** Places an instrument in the middle of what the user is looking at. */
