@@ -7,7 +7,7 @@
     "directory": "./dist",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    // Exercise sheets and the web search go through the worker; every other path is the app.
-    "run_worker_first": ["/ejercicios/*", "/buscar"]
+    // The exercise sheets are fetched by the worker; every other path is the app.
+    "run_worker_first": ["/ejercicios/*"]
   }
 }

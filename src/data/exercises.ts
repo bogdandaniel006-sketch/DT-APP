@@ -6,7 +6,7 @@
 
 export interface Exercise {
   name: string
-  /** Path of the PDF, relative to the source's base URL. */
+  /** Path of the PDF, relative to its source's base URL. */
   file: string
 }
 
@@ -15,24 +15,39 @@ export interface ExerciseGroup {
   exercises: readonly Exercise[]
 }
 
+export interface ExerciseSource {
+  /** Folder of the source in this site's sheet service (/ejercicios/<id>/…); empty for the main library. */
+  id: string
+  title: string
+  author?: string
+  site: string
+  /** Where the files live; a sheet's `file` is relative to it. */
+  baseUrl: string
+  licence?: string
+}
+
 export interface ExerciseTopic {
   title: string
   groups: readonly ExerciseGroup[]
+  /** Where the topic comes from, when it is not the main library. */
+  source?: ExerciseSource
 }
 
-export const EXERCISE_SOURCE = {
+export const EXERCISE_SOURCE: ExerciseSource = {
+  id: '',
   title: 'Dibujo Técnico',
   author: 'Diego de Miguel',
   site: 'dtecnico.com',
   /** The site is only served over http. */
   baseUrl: 'http://dtecnico.com/',
-} as const
+}
 
 /** The original PDF, on the source's own site. */
-export const exerciseUrl = (exercise: Exercise) => EXERCISE_SOURCE.baseUrl + exercise.file
+export const exerciseUrl = (exercise: Exercise, source = EXERCISE_SOURCE) => source.baseUrl + exercise.file
 
 /** The same PDF handed over by this site, so the app can open it on the desk. */
-export const exerciseLocalUrl = (exercise: Exercise) => '/ejercicios/' + exercise.file
+export const exerciseLocalUrl = (exercise: Exercise, source = EXERCISE_SOURCE) =>
+  '/ejercicios/' + (source.id ? source.id + '/' : '') + exercise.file
 
 export const EXERCISE_TOPICS: readonly ExerciseTopic[] = [
   {
@@ -457,6 +472,302 @@ export const EXERCISE_TOPICS: readonly ExerciseTopic[] = [
           { name: 'Ordinaria', file: 'pau/2023-2024-ord.pdf' },
           { name: 'Extraordinaria', file: 'pau/2023-2024-ext.pdf' },
           { name: 'Extraordinaria (Coincidentes)', file: 'pau/2023-2024-ext-cdt.pdf' },
+        ],
+      },
+    ],
+  },
+]
+
+/*
+ * Other sites. Their sheets are kept apart from the main library, each under its own credit.
+ * Every entry was read from the site's own pages; nothing here is guessed.
+ */
+
+const LAS_LAMINAS: ExerciseSource = {
+  id: 'laslaminas',
+  title: 'laslaminas.es',
+  site: 'laslaminas.es',
+  baseUrl: 'https://www.laslaminas.es/',
+  licence: 'CC BY-NC-ND 3.0',
+}
+
+const IBAIGUREN: ExerciseSource = {
+  id: 'ibiguridt',
+  title: 'Dibujo Técnico · ibiguridt',
+  site: 'ibiguridt.wordpress.com',
+  baseUrl: 'https://ibiguridt.wordpress.com/wp-content/uploads/',
+}
+
+const DIBUJOTECNICO_COM: ExerciseSource = {
+  id: 'dibujotecnico',
+  title: 'Dibujotecnico.com',
+  site: 'dibujotecnico.com',
+  baseUrl: 'https://www.dibujotecnico.com/Ejercicios/',
+  licence: 'CC BY-NC-ND 3.0',
+}
+
+const EDUCACION_PLASTICA: ExerciseSource = {
+  id: 'educacionplastica',
+  title: 'Educación Plástica y Visual',
+  site: 'educacionplastica.net',
+  baseUrl: 'https://www.educacionplastica.net/pdfs/',
+  licence: 'CC BY-NC-SA 3.0',
+}
+
+export const OTHER_SOURCES: readonly ExerciseSource[] = [LAS_LAMINAS, IBAIGUREN, DIBUJOTECNICO_COM, EDUCACION_PLASTICA]
+
+export const OTHER_TOPICS: readonly ExerciseTopic[] = [
+  {
+    title: 'Dibujo Técnico I',
+    source: LAS_LAMINAS,
+    groups: [
+      {
+        title: 'Escalas gráficas',
+        exercises: [{ name: 'Escalas gráficas', file: 'descargas/proporcionalidad/escalas.pdf' }],
+      },
+      {
+        title: 'Trazados geométricos básicos',
+        exercises: [
+          { name: 'Trazados geométricos básicos (apuntes)', file: 'cursos/primero_bat/primer_trimestre/trazados_geometricos_teo_primero_bat.pdf' },
+          { name: 'Láminas con ejercicios', file: 'cursos/primero_bat/primer_trimestre/laminas_trazados_geo_basicos_primero_bat.pdf' },
+        ],
+      },
+      {
+        title: 'Normalización',
+        exercises: [
+          { name: 'Introducción a la representación normalizada', file: 'descargas/normalizacion/normalizacion_vistas.pdf' },
+          { name: 'Rotulación y líneas normalizadas', file: 'descargas/normalizacion/rotu_lineas_normalizadas.pdf' },
+        ],
+      },
+      {
+        title: 'Transformaciones geométricas',
+        exercises: [
+          { name: 'Proporcionalidad / relaciones geométricas', file: 'cursos/primero_bat/primer_trimestre/proporcionalidad_relaciones.pdf' },
+          { name: 'Transformaciones geométricas', file: 'cursos/primero_bat/primer_trimestre/transformaciones_intro_iso.pdf' },
+          { name: 'Láminas: proporcionalidad, isometrías y escalas', file: 'cursos/primero_bat/primer_trimestre/laminas_relaciones_prop_transf_esc_primero_bat.pdf' },
+        ],
+      },
+      {
+        title: 'Polígonos',
+        exercises: [
+          { name: 'Triángulos y cuadriláteros', file: 'cursos/primero_bat/primer_trimestre/triangulos_y_cuadrilateros_primero_bat.pdf' },
+          { name: 'Polígonos regulares', file: 'cursos/primero_bat/primer_trimestre/poligonos_regulares_primero_bat.pdf' },
+          { name: 'Láminas de polígonos', file: 'cursos/primero_bat/primer_trimestre/laminas_poligonos_primero_bat.pdf' },
+        ],
+      },
+      {
+        title: 'Tangencias básicas',
+        exercises: [
+          { name: 'Tangencias básicas', file: 'descargas/tangencias/tangencias_basicas.pdf' },
+          { name: 'Láminas de tangencias básicas', file: 'descargas/tangencias/laminas_tg_basicas.pdf' },
+          { name: 'Láminas de piezas con aplicaciones de tangencias básicas', file: 'descargas/tangencias/laminas_piezas_tg_basicas.pdf' },
+        ],
+      },
+      {
+        title: 'Curvas técnicas',
+        exercises: [
+          { name: 'Construcciones de óvalos y ovoides', file: 'cursos/primero_bat/primer_trimestre/ovalos_ovoides.pdf' },
+          { name: 'Láminas de óvalos y ovoides', file: 'cursos/primero_bat/primer_trimestre/ovalos_ovoides_laminas.pdf' },
+        ],
+      },
+      {
+        title: 'Curvas cónicas',
+        exercises: [
+          { name: 'La elipse', file: 'descargas/cuvas_conicas/elipse.pdf' },
+          { name: 'La parábola', file: 'descargas/cuvas_conicas/parabola.pdf' },
+          { name: 'La hipérbola', file: 'descargas/cuvas_conicas/hiperbola.pdf' },
+          { name: 'Láminas de cónicas', file: 'descargas/cuvas_conicas/curvas_conicas_laminas.pdf' },
+        ],
+      },
+      {
+        title: 'Diédrico: punto, recta y plano',
+        exercises: [
+          { name: 'Apuntes de punto, recta y plano', file: 'cursos/primero_bat/segundo_trimestre/pto_recta_plano_apuntes.pdf' },
+          { name: 'Láminas sobre punto, recta y plano', file: 'cursos/primero_bat/segundo_trimestre/pto_recta_plano_laminas.pdf' },
+        ],
+      },
+      {
+        title: 'Diédrico: intersecciones',
+        exercises: [
+          { name: 'Intersecciones', file: 'cursos/primero_bat/segundo_trimestre/sdo_intersecciones_apuntes.pdf' },
+          { name: 'Láminas de intersecciones', file: 'cursos/primero_bat/segundo_trimestre/sdo_intersecciones_laminas.pdf' },
+        ],
+      },
+      {
+        title: 'Diédrico: abatimientos',
+        exercises: [
+          { name: 'Abatimientos', file: 'cursos/primero_bat/segundo_trimestre/abatimientos_apuntes.pdf' },
+          { name: 'Láminas sobre abatimientos', file: 'descargas/diedrico/abatimientos_laminas.pdf' },
+        ],
+      },
+      {
+        title: 'Diédrico: secciones planas',
+        exercises: [
+          { name: 'Apuntes sobre secciones planas', file: 'cursos/primero_bat/tercer_trimestre/secciones_planas_apuntes.pdf' },
+          { name: 'Láminas de secciones', file: 'descargas/diedrico/secciones_planas_laminas.pdf' },
+        ],
+      },
+      {
+        title: 'Perspectiva axonométrica ortogonal',
+        exercises: [
+          { name: 'Apuntes de perspectivas axonométricas ortogonales', file: 'descargas/axonometricas/axonometrica_ortogonal.pdf' },
+          { name: 'Láminas sobre perspectivas axonométricas', file: 'descargas/axonometricas/axo_pto_recta_plano_laminas.pdf' },
+        ],
+      },
+    ],
+  },
+  {
+    title: 'Dibujo Técnico II',
+    source: LAS_LAMINAS,
+    groups: [
+      {
+        title: 'Escalas',
+        exercises: [
+          { name: 'Escalas', file: 'descargas/proporcionalidad/escalas.pdf' },
+          { name: 'Lámina de escalas', file: 'descargas/proporcionalidad/lamina_escalas.pdf' },
+        ],
+      },
+      {
+        title: 'Normalización',
+        exercises: [
+          { name: 'Introducción a la representación normalizada', file: 'descargas/normalizacion/normalizacion_vistas.pdf' },
+          { name: 'Rotulación y líneas normalizadas', file: 'descargas/normalizacion/rotu_lineas_normalizadas.pdf' },
+          { name: 'PAU Normalización', file: 'cursos/segundo_bat/primer_trimestre/normalizacion_pau.pdf' },
+          { name: 'PAU Normalización: soluciones', file: 'cursos/segundo_bat/primer_trimestre/normalizacion_pau_solu.pdf' },
+        ],
+      },
+      {
+        title: 'Transformaciones geométricas',
+        exercises: [
+          { name: 'PAU geometría plana', file: 'cursos/segundo_bat/primer_trimestre/geo_plana_pau.pdf' },
+          { name: 'PAU geometría plana: soluciones', file: 'cursos/segundo_bat/primer_trimestre/geo_plana_pau_solu.pdf' },
+          { name: 'Afinidad', file: 'descargas/transformaciones_geometricas/afinidad.pdf' },
+          { name: 'Láminas de afinidad', file: 'descargas/transformaciones_geometricas/laminas_afinidad.pdf' },
+          { name: 'Láminas de afinidad: soluciones', file: 'descargas/transformaciones_geometricas/laminas_afinidad_solu.pdf' },
+          { name: 'Homología', file: 'descargas/transformaciones_geometricas/homologia.pdf' },
+          { name: 'Láminas de homología', file: 'descargas/transformaciones_geometricas/laminas_homologia.pdf' },
+          { name: 'Láminas de homología: soluciones', file: 'descargas/transformaciones_geometricas/laminas_homologia_solu.pdf' },
+          { name: 'PAU de homología y afinidad', file: 'cursos/segundo_bat/primer_trimestre/homologia_afinidad_pau.pdf' },
+          { name: 'PAU de homología y afinidad: soluciones', file: 'cursos/segundo_bat/primer_trimestre/homologia_afinidad_pau_solu.pdf' },
+        ],
+      },
+      {
+        title: 'Tangencias',
+        exercises: [
+          { name: 'PAU Tangencias', file: 'cursos/segundo_bat/primer_trimestre/tangencias_pau.pdf' },
+          { name: 'PAU Tangencias: soluciones', file: 'cursos/segundo_bat/primer_trimestre/tangencias_pau_solu.pdf' },
+        ],
+      },
+      {
+        title: 'Curvas cónicas',
+        exercises: [
+          { name: 'La elipse', file: 'descargas/cuvas_conicas/elipse.pdf' },
+          { name: 'La parábola', file: 'descargas/cuvas_conicas/parabola.pdf' },
+          { name: 'La hipérbola', file: 'descargas/cuvas_conicas/hiperbola.pdf' },
+          { name: 'Láminas de curvas cónicas', file: 'descargas/cuvas_conicas/curvas_conicas_laminas.pdf' },
+          { name: 'Láminas de curvas cónicas: soluciones', file: 'descargas/cuvas_conicas/curvas_conicas_laminas_solu.pdf' },
+          { name: 'PAU Curvas técnicas y curvas cónicas', file: 'cursos/segundo_bat/segundo_trimestre/curvas_tec_con_pau.pdf' },
+          { name: 'PAU Curvas técnicas y curvas cónicas: soluciones', file: 'cursos/segundo_bat/segundo_trimestre/curvas_tec_con_pau_solu.pdf' },
+        ],
+      },
+      {
+        title: 'Sistema diédrico',
+        exercises: [
+          { name: 'PAU Sistema diédrico', file: 'cursos/segundo_bat/segundo_trimestre/sdo_pau.pdf' },
+          { name: 'PAU Sistema diédrico: soluciones', file: 'cursos/segundo_bat/segundo_trimestre/sdo_pau_solu.pdf' },
+        ],
+      },
+      {
+        title: 'Axonométricas',
+        exercises: [
+          { name: 'PAU de axonométricas', file: 'cursos/segundo_bat/tercer_trimestre/axonometricas_pau.pdf' },
+          { name: 'PAU de axonométricas: soluciones', file: 'cursos/segundo_bat/tercer_trimestre/axonometricas_pau_solu.pdf' },
+        ],
+      },
+    ],
+  },
+  {
+    title: 'Láminas de dibujo industrial',
+    source: IBAIGUREN,
+    groups: [
+      {
+        title: 'Láminas',
+        exercises: [
+          { name: 'Ejercicio 01: rayados', file: '2016/09/01-propuesta-de-rayados.pdf' },
+          { name: 'Ejercicio 01: solución', file: '2016/10/rayados-soluccic3b3n.pdf' },
+          { name: 'Lámina 01', file: '2016/10/lc3a1mina-1.pdf' },
+          { name: 'Lámina 02', file: '2016/10/lc3a1mina-2.pdf' },
+          { name: 'Lámina 03', file: '2016/10/lc3a1mina-3.pdf' },
+          { name: 'Lámina 04', file: '2016/10/lc3a1mina-41.pdf' },
+          { name: 'Lámina 05', file: '2016/10/lc3a1mina-5.pdf' },
+          { name: 'Lámina 06', file: '2016/10/lc3a1mina-6.pdf' },
+          { name: 'Lámina 07', file: '2016/10/lc3a1mina-7.pdf' },
+          { name: 'Lámina 08', file: '2016/11/lamina-8.pdf' },
+          { name: 'Lámina 09', file: '2016/11/lamina-91.pdf' },
+          { name: 'Lámina 10', file: '2017/01/lc3a1mina-10.pdf' },
+          { name: 'Lámina 11', file: '2017/01/lc3a1mina-11.pdf' },
+          { name: 'Lámina 12', file: '2017/01/lc3a1mina-121.pdf' },
+          { name: 'Lámina 13', file: '2017/01/lc3a1mina-13.pdf' },
+          { name: 'Lámina 14', file: '2017/02/lc3a1mina-14.pdf' },
+          { name: 'Lámina 15', file: '2017/02/lc3a1mina-15.pdf' },
+          { name: 'Lámina 16', file: '2017/02/lc3a1mina-16.pdf' },
+          { name: 'Lámina 17', file: '2017/02/lc3a1mina-17.pdf' },
+          { name: 'Lámina 18', file: '2017/03/lc3a1mina-18.pdf' },
+          { name: 'Lámina 19', file: '2017/03/lc3a1mina-19.pdf' },
+          { name: 'Lámina 20', file: '2017/03/lc3a1mina-20.pdf' },
+          { name: 'Lámina 22', file: '2017/04/lc3a1mina-22.pdf' },
+          { name: 'Lámina 23', file: '2017/05/lc3a1mina-23.pdf' },
+        ],
+      },
+      {
+        title: 'Acotación y perspectivas',
+        exercises: [
+          { name: 'Ejercicio de acotación', file: '2017/03/lc3a1mina-acotacic3b3n-1.pdf' },
+          { name: 'Ejercicios de perspectivas: caballera', file: '2017/01/lc3a1mina-13-perspectiva-caballera.pdf' },
+          { name: 'Ejercicios de perspectivas: isométrico', file: '2017/01/lc3a1mina-14-perspectiva-isomc3a9trico.pdf' },
+        ],
+      },
+    ],
+  },
+  {
+    title: 'Triángulos, cuadriláteros y vistas',
+    source: DIBUJOTECNICO_COM,
+    groups: [
+      {
+        title: 'Geometría plana',
+        exercises: [
+          { name: '23 ejercicios sobre construcción de triángulos', file: 'doc_1_03.pdf' },
+          { name: '24 ejercicios sobre construcción de cuadriláteros', file: 'doc_1_04.pdf' },
+        ],
+      },
+      {
+        title: 'Vistas',
+        exercises: [
+          { name: '10 piezas en isométrico para obtener sus vistas (volumen 1)', file: 'doc_3_1.pdf' },
+          { name: 'Volumen 1: soluciones', file: 'doc_3_2.pdf' },
+          { name: '10 piezas en isométrico para obtener sus vistas (volumen 2)', file: 'doc_3_3.pdf' },
+          { name: 'Volumen 2: soluciones', file: 'doc_3_4.pdf' },
+          { name: '24 ejercicios de obtención de las vistas de una pieza', file: 'doc_3_5.pdf' },
+        ],
+      },
+    ],
+  },
+  {
+    title: 'Vistas en red cúbica',
+    source: EDUCACION_PLASTICA,
+    groups: [
+      {
+        title: 'Red cúbica de 2×2×2',
+        exercises: [
+          { name: '16 ejercicios (nueva versión)', file: 'ejercicios_vistas_2x2x2_QR.pdf' },
+          { name: '12 ejercicios (versión antigua)', file: 'vistas.pdf' },
+        ],
+      },
+      {
+        title: 'Red cúbica de 3×3×3',
+        exercises: [
+          { name: '12 ejercicios (nueva versión)', file: 'ejercicios_vistas_3x3x3_QR.pdf' },
+          { name: '8 ejercicios (versión antigua)', file: 'vistas2.pdf' },
         ],
       },
     ],
