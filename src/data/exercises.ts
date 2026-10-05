@@ -793,13 +793,6 @@ const AS_REVOLTAS: ExerciseSource = {
   baseUrl: 'https://www.edu.xunta.gal/centros/cpiasrevoltas/system/files/',
 }
 
-const JUAN_GRIS: ExerciseSource = {
-  id: 'iesjuangris',
-  title: 'IES Juan Gris',
-  site: 'iesjuangris.com',
-  baseUrl: 'https://www.iesjuangris.com/images/',
-}
-
 const ALFREDO_DIBUJO: ExerciseSource = {
   id: 'alfredodibujo',
   title: 'Alfredo Dibujo',
@@ -1003,13 +996,6 @@ const THEME_TOPICS: readonly ExerciseTopic[] = [
         source: FRANM,
         exercises: [
           { name: 'Sistema axonométrico: de vistas a piezas', file: '2021/02/SISTEMA-AXONOM%C3%89TRICO-06-de-vistas-a-piezas.pdf' },
-        ],
-      },
-      {
-        title: 'IES Juan Gris',
-        source: JUAN_GRIS,
-        exercises: [
-          { name: 'Prácticas de perspectiva isométrica', file: 'Practicas_perspectiva_isometrica_copia.pdf' },
         ],
       },
       {
@@ -1364,7 +1350,6 @@ export const OTHER_SOURCES: readonly ExerciseSource[] = [
   MARE_NOSTRUM,
   ARZOBISPO_LOZANO,
   AS_REVOLTAS,
-  JUAN_GRIS,
   ALFREDO_DIBUJO,
   FCEIA,
   OCW_UNICAN,

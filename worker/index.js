@@ -24,7 +24,6 @@ const OTHERS = {
   iesmarenostrum: 'https://www.iesmarenostrum.com/departamentos/tecnologia/',
   iesarzobispolozano: 'https://www.murciaeduca.es/iesarzobispolozano/sitio/upload/',
   cpiasrevoltas: 'https://www.edu.xunta.gal/centros/cpiasrevoltas/system/files/',
-  iesjuangris: 'https://www.iesjuangris.com/images/',
   alfredodibujo: 'https://alfredodibujo.wordpress.com/wp-content/uploads/',
   fceia: 'https://www.fceia.unr.edu.ar/dibujo/',
   ocwunican: 'https://ocw.unican.es/pluginfile.php/2058/course/section/1800/',
