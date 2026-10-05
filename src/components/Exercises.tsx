@@ -1,4 +1,4 @@
-import { ArrowLeft, BookOpen, Box, ChevronRight, Eye, GraduationCap, Mountain, Ruler, Shapes, Triangle, X } from 'lucide-react'
+import { ArrowLeft, BookOpen, Box, ChevronRight, Eye, GraduationCap, Mountain, Ruler, Search, Shapes, Triangle, X } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import {
@@ -28,23 +28,55 @@ const count = (topic: ExerciseTopic) => topic.groups.reduce((n, g) => n + g.exer
 /** "doc/tangencias-apolonio.pdf" → "tangencias-apolonio.pdf": the name the sheet has at its source. */
 const fileName = (exercise: Exercise) => exercise.file.split('/').pop() ?? exercise.file
 
-/** The library: a square per topic, then the sheets of the chosen topic as an index. */
+/** Lower case and without accents, so "diedrico" finds "Diédrico". */
+const plain = (text: string) =>
+  text
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+
+interface Found {
+  exercise: Exercise
+  /** Topic and group of the sheet. */
+  where: string
+}
+
+/** Sheets whose name, group or topic contain every word of the query. */
+const search = (query: string): Found[] => {
+  const words = plain(query).split(/\s+/).filter(Boolean)
+  if (!words.length) return []
+  const found: Found[] = []
+  for (const t of EXERCISE_TOPICS) {
+    for (const g of t.groups) {
+      for (const x of g.exercises) {
+        const text = plain(`${t.title} ${g.title} ${x.name}`)
+        if (words.every((w) => text.includes(w))) found.push({ exercise: x, where: `${t.title} · ${g.title}` })
+      }
+    }
+  }
+  return found
+}
+
+/** The library: a search box, a square per topic, then the sheets of the chosen topic as an index. */
 const ExercisesPanel = ({ onClose }: { onClose: () => void }) => {
   const [topic, setTopic] = useState<ExerciseTopic | null>(null)
   const [opening, setOpening] = useState<Exercise | null>(null)
   const [failed, setFailed] = useState<Exercise | null>(null)
+  const [query, setQuery] = useState('')
 
   // While the panel is open the keyboard belongs to it: Esc steps back, tool shortcuts stay quiet.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       e.stopPropagation()
       if (e.key !== 'Escape') return
-      if (topic) setTopic(null)
+      e.preventDefault()
+      if (query) setQuery('')
+      else if (topic) setTopic(null)
       else onClose()
     }
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
-  }, [topic, onClose])
+  }, [topic, query, onClose])
 
   /** Puts the sheet on the desk, ready to draw on. */
   const open = async (exercise: Exercise) => {
@@ -56,6 +88,30 @@ const ExercisesPanel = ({ onClose }: { onClose: () => void }) => {
     if (ok) onClose()
     else setFailed(exercise)
   }
+
+  const found = search(query)
+  const searching = query.trim() !== ''
+
+  /** A sheet of the index; search results also say where it belongs. */
+  const sheetRow = (x: Exercise, where?: string) => (
+    <button
+      key={x.file}
+      type="button"
+      onClick={() => void open(x)}
+      disabled={opening !== null}
+      className="flex w-full break-inside-avoid items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] text-ink outline-none transition-colors hover:bg-accent-soft hover:text-accent focus-visible:bg-accent-soft disabled:cursor-default disabled:hover:bg-transparent disabled:hover:text-ink"
+    >
+      <span className="min-w-0 flex-1">
+        {x.name}
+        {where && <span className="block truncate text-[11.5px] text-muted">{where}</span>}
+      </span>
+      {opening === x ? (
+        <span className="shrink-0 text-[11px] font-medium text-accent">Abriendo…</span>
+      ) : (
+        <ChevronRight size={15} className="shrink-0 text-faint" />
+      )}
+    </button>
+  )
 
   return createPortal(
     <div
@@ -87,37 +143,52 @@ const ExercisesPanel = ({ onClose }: { onClose: () => void }) => {
           </IconButton>
         </header>
 
+        <label className="mx-4 mb-2 flex h-10 items-center gap-2 rounded-xl bg-black/[0.04] px-3 text-muted transition-colors focus-within:bg-accent-soft focus-within:text-accent sm:mx-6">
+          <Search size={16} className="shrink-0" />
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Buscar una ficha: tangencias, abatimiento, 2023…"
+            aria-label="Buscar una ficha"
+            spellCheck={false}
+            autoComplete="off"
+            className="h-full min-w-0 flex-1 bg-transparent text-[13.5px] text-ink outline-none placeholder:text-faint [&::-webkit-search-cancel-button]:hidden"
+          />
+          {query && (
+            <button
+              type="button"
+              aria-label="Borrar la búsqueda"
+              onClick={() => setQuery('')}
+              className="grid h-6 w-6 shrink-0 place-items-center rounded-md outline-none hover:bg-white/70 focus-visible:ring-2 focus-visible:ring-accent/40"
+            >
+              <X size={14} />
+            </button>
+          )}
+        </label>
+
         <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 sm:px-6">
-          {topic ? (
+          {failed && (
+            <p className="mb-2 rounded-xl bg-red-50 px-3 py-2 text-[12.5px] leading-snug text-red-600">
+              No se ha podido traer «{failed.name}» a la mesa.{' '}
+              <a href={exerciseUrl(failed)} target="_blank" rel="noopener noreferrer" className="font-medium underline">
+                Abrir el PDF original
+              </a>
+            </p>
+          )}
+          {searching ? (
+            found.length ? (
+              <div className="gap-x-6 sm:columns-2">{found.map((f) => sheetRow(f.exercise, f.where))}</div>
+            ) : (
+              <p className="px-2.5 py-8 text-center text-[13px] text-muted">Ninguna ficha coincide con «{query.trim()}».</p>
+            )
+          ) : topic ? (
             <>
-              {failed && (
-                <p className="mb-2 rounded-xl bg-red-50 px-3 py-2 text-[12.5px] leading-snug text-red-600">
-                  No se ha podido traer «{failed.name}» a la mesa.{' '}
-                  <a href={exerciseUrl(failed)} target="_blank" rel="noopener noreferrer" className="font-medium underline">
-                    Abrir el PDF original
-                  </a>
-                </p>
-              )}
               <div className="gap-x-6 sm:columns-2 lg:columns-3">
                 {topic.groups.map((g) => (
                   <div key={g.title} className="mb-2 break-inside-avoid">
                     <p className="px-2.5 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wider text-faint">{g.title}</p>
-                    {g.exercises.map((x) => (
-                      <button
-                        key={x.file}
-                        type="button"
-                        onClick={() => void open(x)}
-                        disabled={opening !== null}
-                        className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] text-ink outline-none transition-colors hover:bg-accent-soft hover:text-accent focus-visible:bg-accent-soft disabled:cursor-default disabled:hover:bg-transparent disabled:hover:text-ink"
-                      >
-                        <span className="flex-1">{x.name}</span>
-                        {opening === x ? (
-                          <span className="shrink-0 text-[11px] font-medium text-accent">Abriendo…</span>
-                        ) : (
-                          <ChevronRight size={15} className="shrink-0 text-faint" />
-                        )}
-                      </button>
-                    ))}
+                    {g.exercises.map((x) => sheetRow(x))}
                   </div>
                 ))}
               </div>
