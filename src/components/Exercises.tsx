@@ -9,6 +9,7 @@ import {
   exerciseLocalUrl,
   exerciseUrl,
   type Exercise,
+  type ExerciseGroup,
   type ExerciseSource,
   type ExerciseTopic,
 } from '../data/exercises'
@@ -24,6 +25,11 @@ const TOPIC_ICONS: Record<string, ReactNode> = {
   'Planos acotados': <Mountain size={26} strokeWidth={1.6} />,
   Normalización: <Ruler size={26} strokeWidth={1.6} />,
   'Pruebas de acceso · Madrid': <GraduationCap size={26} strokeWidth={1.6} />,
+  'Vistas de piezas': <Box size={26} strokeWidth={1.6} />,
+  'Perspectivas: isométrica y caballera': <Eye size={26} strokeWidth={1.6} />,
+  'Normalización y acotación': <Ruler size={26} strokeWidth={1.6} />,
+  'Sistema diédrico': <Shapes size={26} strokeWidth={1.6} />,
+  'Perspectiva cónica y sólidos': <Mountain size={26} strokeWidth={1.6} />,
 }
 
 const SIDE_BUTTON =
@@ -31,7 +37,11 @@ const SIDE_BUTTON =
 
 const count = (topic: ExerciseTopic) => topic.groups.reduce((n, g) => n + g.exercises.length, 0)
 
-const sourceOf = (topic: ExerciseTopic) => topic.source ?? EXERCISE_SOURCE
+/** Site a group of sheets comes from: its own, its topic's, or the main library. */
+const sourceOf = (topic: ExerciseTopic, group?: ExerciseGroup) => group?.source ?? topic.source ?? EXERCISE_SOURCE
+
+/** Sites a topic draws from, each once. */
+const sitesOf = (topic: ExerciseTopic) => [...new Set(topic.groups.map((g) => sourceOf(topic, g).site))]
 
 /** A sheet and the site it comes from. */
 interface Sheet {
@@ -60,13 +70,14 @@ const search = (query: string, topics: readonly ExerciseTopic[]): Found[] => {
   if (!words.length) return []
   const found: Found[] = []
   for (const t of topics) {
+    // Topics of a single site name it first; in the others each group's title already does.
     const site = t.source ? `${t.source.site} · ` : ''
     for (const g of t.groups) {
+      const source = sourceOf(t, g)
+      const where = `${site}${t.title} · ${g.title}`
       for (const x of g.exercises) {
-        const text = plain(`${site}${t.title} ${g.title} ${x.name}`)
-        if (words.every((w) => text.includes(w))) {
-          found.push({ exercise: x, source: sourceOf(t), where: `${site}${t.title} · ${g.title}` })
-        }
+        const text = plain(`${source.site} ${where} ${x.name}`)
+        if (words.every((w) => text.includes(w))) found.push({ exercise: x, source, where })
       }
     }
   }
@@ -177,7 +188,7 @@ const ExercisesPanel = ({ onClose }: { onClose: () => void }) => {
           )}
           <div className="min-w-0 flex-1">
             <p className="truncate text-[11px] font-medium uppercase tracking-wider text-faint">
-              {topic ? (others ? sourceOf(topic).site : 'Ejercicios para practicar') : 'Elige un tema'}
+              {topic ? (others ? (topic.source?.site ?? 'Varias webs') : 'Ejercicios para practicar') : 'Elige un tema'}
             </p>
             <h2 className="truncate text-[20px] font-semibold tracking-[-0.02em] text-ink">
               {topic ? topic.title : others ? 'Ejercicios de otras webs' : 'Ejercicios para practicar'}
@@ -260,7 +271,7 @@ const ExercisesPanel = ({ onClose }: { onClose: () => void }) => {
               {topic.groups.map((g) => (
                 <div key={g.title} className="mb-2 break-inside-avoid">
                   <p className="px-2.5 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wider text-faint">{g.title}</p>
-                  {g.exercises.map((x) => sheetRow({ exercise: x, source: sourceOf(topic) }, x.file))}
+                  {g.exercises.map((x) => sheetRow({ exercise: x, source: sourceOf(topic, g) }, x.file))}
                 </div>
               ))}
             </div>
@@ -283,7 +294,11 @@ const ExercisesPanel = ({ onClose }: { onClose: () => void }) => {
                     <span className="block text-[15px] font-semibold leading-tight tracking-[-0.01em] text-ink group-hover:text-accent">
                       {t.title}
                     </span>
-                    {t.source && <span className="mt-1 block truncate text-[12px] font-medium text-accent">{t.source.site}</span>}
+                    {others && (
+                      <span className="mt-1 block truncate text-[12px] font-medium text-accent">
+                        {t.source ? t.source.site : `${sitesOf(t).length} webs`}
+                      </span>
+                    )}
                     <span className="mt-1 block text-[12px] tabular-nums text-muted">{count(t)} fichas</span>
                   </span>
                 </button>
@@ -295,8 +310,13 @@ const ExercisesPanel = ({ onClose }: { onClose: () => void }) => {
         <footer className="border-t border-black/[0.06] px-4 py-2.5 text-[11.5px] leading-snug text-muted sm:px-6">
           {others && !topic ? (
             <>
-              <p>Ejercicios y materiales de otras webs; cada ficha pertenece a su web de origen.</p>
-              <p>Fuentes: {OTHER_SOURCES.map((s) => s.site).join(' · ')}</p>
+              <p>Ejercicios y materiales de {OTHER_SOURCES.length} webs; cada ficha pertenece a su web de origen.</p>
+              <p>Dentro de cada tema se indica de qué web es cada grupo de fichas.</p>
+            </>
+          ) : topic && !topic.source && others ? (
+            <>
+              <p>Ejercicios y materiales de varias webs; cada ficha pertenece a su web de origen.</p>
+              <p>Fuentes: {sitesOf(topic).join(' · ')}</p>
             </>
           ) : (
             <>
