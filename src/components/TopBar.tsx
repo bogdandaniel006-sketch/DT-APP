@@ -10,6 +10,7 @@ import { shortcutLabel, shortcutStore } from '../state/shortcuts'
 import { pickPdf } from '../utils/filePicker'
 import { ControlsMenu } from './ControlsMenu'
 import { Credit } from './Credit'
+import { ExercisesButton } from './Exercises'
 import { Logo } from './Logo'
 import { IconButton } from './ui/IconButton'
 import { MenuItem, Popover } from './ui/Popover'
@@ -258,6 +259,7 @@ export const TopBar = () => {
         <IconButton label="Abrir PDF o proyecto" shortcut="Ctrl O" onClick={() => void openPdfDialog()}>
           <FolderOpen size={18} />
         </IconButton>
+        <ExercisesButton variant="bar" />
         <SaveMenu />
       </div>
       {saveFailed && (

@@ -3,6 +3,7 @@ import { resumeWorkspace } from '../state/actions'
 import { appStore } from '../state/appStore'
 import { useStore } from '../state/createStore'
 import { Credit } from './Credit'
+import { ExercisesButton } from './Exercises'
 import { openPdfDialog } from './TopBar'
 
 /** A quiet construction drawing: a triangle, its circumcircle and a few helper arcs. */
@@ -51,6 +52,7 @@ export const StartScreen = () => {
             <span className="truncate">Volver a {fileName}</span>
           </button>
         )}
+        <ExercisesButton variant="start" />
         <p className="mt-4 text-[13px] text-muted">Abre un ejercicio en PDF o un proyecto guardado (.lamina) y empieza a construir.</p>
         {error && <p className="mt-4 text-[13px] text-red-600">{error}</p>}
       </div>
