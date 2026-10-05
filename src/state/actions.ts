@@ -60,6 +60,19 @@ export const loadPdfFile = async (file: File) => {
   await loadPdf(project.bytes, project.name, { drawing: project })
 }
 
+/** Opens a PDF served by this site (an exercise sheet) on the desk. False when it could not be fetched. */
+export const loadPdfFromUrl = async (url: string, name: string): Promise<boolean> => {
+  try {
+    const response = await fetch(url)
+    // Without the sheet service every path answers with the app's own page: that is not a PDF.
+    if (!response.ok || !response.headers.get('content-type')?.includes('pdf')) return false
+    await loadPdf(new Uint8Array(await response.arrayBuffer()), name)
+    return true
+  } catch {
+    return false
+  }
+}
+
 /** Downloads the open PDF and its editable drawing as one project file. */
 export const saveProject = () => {
   const session = getSession()

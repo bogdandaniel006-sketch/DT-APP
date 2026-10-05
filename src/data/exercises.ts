@@ -1,6 +1,6 @@
 /**
  * Exercise library: an index of the sheets published at dtecnico.com by Diego de Miguel.
- * Nothing is copied into this project; every entry points to the original PDF.
+ * Nothing is copied into this project: every sheet is fetched from the original when opened.
  * To add a sheet, add a line here — the interface needs no change.
  */
 
@@ -28,7 +28,11 @@ export const EXERCISE_SOURCE = {
   baseUrl: 'http://dtecnico.com/',
 } as const
 
+/** The original PDF, on the source's own site. */
 export const exerciseUrl = (exercise: Exercise) => EXERCISE_SOURCE.baseUrl + exercise.file
+
+/** The same PDF handed over by this site, so the app can open it on the desk. */
+export const exerciseLocalUrl = (exercise: Exercise) => '/ejercicios/' + exercise.file
 
 export const EXERCISE_TOPICS: readonly ExerciseTopic[] = [
   {
