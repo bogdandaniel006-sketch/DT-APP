@@ -9,7 +9,7 @@ import { toolTick, tools } from '../tools/registry'
 import { isGeometry, isText, type Pencil, type PencilHardness, type PencilWidth, type ToolId } from '../types'
 import { distance } from '../geometry/primitives'
 import { pageOffset } from '../geometry/layout'
-import { DEFAULT_TEXT_MM, MAX_TEXT_LENGTH, TEXT_SIZES_MM } from '../geometry/text'
+import { MAX_TEXT_LENGTH } from '../geometry/text'
 import { add } from '../geometry/vec'
 import { MAX_NAME_LENGTH, normalizePointName } from '../utils/pointNames'
 import { formatCoordinate, formatLength } from '../utils/format'
@@ -256,10 +256,6 @@ const SelectionInfo = ({ ids }: { ids: readonly string[] }) => {
       )}
       {single && first.kind === 'point' && writing && (
         <>
-          <TextSizePicker
-            value={first.size ?? DEFAULT_TEXT_MM}
-            onChange={(size) => documentActions.update([first.id], (s) => ({ ...s, size }))}
-          />
           <TextButton
             icon={<PencilIcon size={14} />}
             onClick={() => {
@@ -298,16 +294,6 @@ const SelectionInfo = ({ ids }: { ids: readonly string[] }) => {
   )
 }
 
-const TEXT_SIZE_OPTIONS = TEXT_SIZES_MM.map((mm) => ({ value: mm as number, label: String(mm).replace('.', ',') }))
-
-/** Letter height of a text, in millimetres on paper. */
-const TextSizePicker = ({ value, onChange }: { value: number; onChange: (mm: number) => void }) => (
-  <div className="flex items-center gap-1.5">
-    <span className="text-[11px] font-medium uppercase tracking-wider text-faint">Tamaño</span>
-    <Segmented<number> label="Tamaño del texto" value={value} options={TEXT_SIZE_OPTIONS} onChange={onChange} />
-  </div>
-)
-
 const MeasureOptions = ({ tool }: { tool: 'measure-distance' | 'measure-angle' }) => (
   <Segmented<'measure-distance' | 'measure-angle'>
     label="Medir"
@@ -324,7 +310,6 @@ const MeasureOptions = ({ tool }: { tool: 'measure-distance' | 'measure-angle' }
 export const ContextBar = () => {
   const tool = useStore(appStore, (s) => s.tool)
   const pencil = useStore(appStore, (s) => s.pencil)
-  const textSize = useStore(appStore, (s) => s.textSize)
   const selection = useStore(appStore, (s) => s.selection)
   useStore(appStore, (s) => s.measuring)
   useStore(appStore, (s) => s.compassRadius)
@@ -358,12 +343,6 @@ export const ContextBar = () => {
             <MeasureOptions tool={measureTool} />
           ) : (
             <>
-              {tool === 'text' && (
-                <>
-                  <TextSizePicker value={textSize} onChange={(size) => appStore.set({ textSize: size })} />
-                  <Divider />
-                </>
-              )}
               <PencilPicker pencil={pencil} onChange={(p) => appStore.set({ pencil: p })} />
               {(tool === 'compass' || tool === 'arc') && (
                 <>

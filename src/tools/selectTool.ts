@@ -3,16 +3,18 @@ import { angle, arcEndPoint, arcStartPoint, circleFromCenterRadius, distance, po
 import { intersection } from '../geometry/intersections'
 import { anchorOf, bounds, boundsInside, keyPoints, measurements, outlineOf, translateGeometry } from '../geometry/shapes'
 import { SNAP_RADIUS_PX, type SnapResult } from '../geometry/snapping'
+import { MAX_TEXT_MM, MIN_TEXT_MM, TEXT_ASCENT, textBox, textSize } from '../geometry/text'
+import { mmToPt, ptToMm } from '../geometry/units'
 import { EPS, length, normAngle, scale, sub } from '../geometry/vec'
 import { appStore } from '../state/appStore'
 import { documentActions, documentStore } from '../state/documentStore'
-import { isGeometry, type Shape, type Vec } from '../types'
+import { isGeometry, isText, type Shape, type Vec } from '../types'
 import { suggestName } from '../pdf/detect'
 import { SHIFT_STEP } from './lineTool'
 import { segmentOverlays, snapOverlay } from './overlays'
 import type { Overlay, Tool, ToolApi, ToolPointer } from './types'
 
-type HandleKind = 'a' | 'b' | 'radius' | 'start' | 'end'
+type HandleKind = 'a' | 'b' | 'radius' | 'start' | 'end' | 'size'
 type Handle = { id: string; kind: HandleKind }
 
 type Drag =
@@ -47,7 +49,12 @@ const handlesOf = (s: Shape): { handle: Handle; p: Vec }[] => {
         { handle: { id: s.id, kind: 'end' }, p: arcEndPoint(s) },
         { handle: { id: s.id, kind: 'radius' }, p: pointOnCircle(s.c, s.r, s.start + s.sweep / 2) },
       ]
-    case 'point':
+    case 'point': {
+      // A text is resized by the lower right corner of its box.
+      if (!s.text) return []
+      const box = textBox(s.p, s.name ?? '', textSize(s.size))
+      return [{ handle: { id: s.id, kind: 'size' }, p: { x: box.maxX, y: box.maxY } }]
+    }
     case 'distance':
     case 'angle':
       return []
@@ -73,6 +80,20 @@ export const createSelectTool = (): Tool => {
     const exclude = new Set([d.handle.id])
     const base = d.base
     const kind = d.handle.kind
+    if (base.kind === 'point') {
+      if (!base.text) return
+      // The box grows and shrinks along its diagonal, its upper left corner staying where it is.
+      const from = textSize(base.size)
+      const box = textBox(base.p, base.name ?? '', from)
+      const diagonal = { x: box.maxX - box.minX, y: box.maxY - box.minY }
+      const along = ((e.world.x - box.minX) * diagonal.x + (e.world.y - box.minY) * diagonal.y) / (diagonal.x ** 2 + diagonal.y ** 2)
+      const mm = Math.min(MAX_TEXT_MM, Math.max(MIN_TEXT_MM, ptToMm(from * along)))
+      // The text hangs from its first baseline, which moves down as the letters grow.
+      const y = box.minY + mmToPt(mm) * TEXT_ASCENT - api.pageOffset(base.page).y
+      snap = null
+      documentActions.update([base.id], (s) => (s.kind === 'point' ? { ...s, size: mm, p: { x: s.p.x, y } } : s))
+      return
+    }
     if (base.kind === 'segment') {
       const fixed = kind === 'a' ? base.b : base.a
       let p: Vec
@@ -215,6 +236,12 @@ export const createSelectTool = (): Tool => {
         }
       } else if (drag) {
         if (drag.mode === 'move') settlePages(drag.ids, api)
+        if (drag.mode === 'handle' && drag.handle.kind === 'size') {
+          // The next texts are written at the size this one was just given.
+          const { id } = drag.handle
+          const resized = documentStore.get().shapes.find((s) => s.id === id)
+          if (resized?.size) appStore.set({ textSize: resized.size })
+        }
         documentActions.endGesture()
       }
       drag = null
@@ -251,6 +278,17 @@ export const createSelectTool = (): Tool => {
           // Radii to both ends make the angle of the arc readable, as on paper.
           out.push({ kind: 'guide', a: s.c, b: arcStartPoint(s) }, { kind: 'guide', a: s.c, b: arcEndPoint(s) })
         }
+        if (s.kind === 'point' && s.text) {
+          // The box of the text, so its corner handle reads as a corner.
+          const b = textBox(s.p, s.name ?? '', textSize(s.size))
+          const corners = [
+            { x: b.minX, y: b.minY },
+            { x: b.maxX, y: b.minY },
+            { x: b.maxX, y: b.maxY },
+            { x: b.minX, y: b.maxY },
+          ]
+          corners.forEach((c, i) => out.push({ kind: 'guide', a: c, b: corners[(i + 1) % 4]! }))
+        }
         for (const h of handlesOf(s)) out.push({ kind: 'marker', p: h.p, handle: true })
       }
       if (drag?.mode === 'marquee' && distance(drag.from, drag.to) > api.px(3)) {
@@ -267,6 +305,8 @@ export const createSelectTool = (): Tool => {
         : drag.handle.kind === 'a' || drag.handle.kind === 'b'
           ? 'Ctrl alarga la línea sin cambiar su dirección · Shift bloquea el ángulo'
           : null
+      const only = sel.length === 1 ? documentStore.get().shapes.find((s) => s.id === sel[0]) : undefined
+      if (only && isText(only)) return 'Arrastra la esquina del cuadro para hacer el texto más grande o más pequeño'
       return null
     },
     cursor() {
