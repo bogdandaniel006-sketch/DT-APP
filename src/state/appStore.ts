@@ -2,6 +2,7 @@ import type { InstrumentKind, InstrumentState, LayerId, Pencil, SnapMode, ToolId
 import { pageAt, type PageRect } from '../geometry/layout'
 import { mmToPt, PX_PER_PT } from '../geometry/units'
 import { LAYER_PENCIL } from '../canvas/style'
+import type { StoredTab } from '../utils/storage'
 import { createStore } from './createStore'
 
 export type Phase = 'boot' | 'start' | 'loading' | 'ready'
@@ -11,6 +12,10 @@ export interface AppState {
   error: string | null
   fileName: string
   fingerprint: string
+  /** Open documents, in the order of their tabs. */
+  tabs: readonly StoredTab[]
+  /** The tab on the desk. */
+  activeTab: string | null
   /** Page under the centre of the viewport. */
   page: number
   pageCount: number
@@ -59,6 +64,8 @@ export const appStore = createStore<AppState>({
   error: null,
   fileName: '',
   fingerprint: '',
+  tabs: [],
+  activeTab: null,
   page: 0,
   pageCount: 0,
   pageRects: [],

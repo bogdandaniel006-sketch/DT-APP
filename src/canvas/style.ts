@@ -9,12 +9,21 @@ const GRAPHITE: Record<Pencil['hardness'], string> = {
   HB: '#1F2329',
 }
 
+/** Colours a stroke can take instead of graphite. Graphite (no colour) is always the default. */
+export const PENCIL_COLORS: readonly { value: string; label: string }[] = [
+  { value: '#DC2626', label: 'Rojo' },
+  { value: '#1D4ED8', label: 'Azul' },
+  { value: '#15803D', label: 'Verde' },
+  { value: '#EA580C', label: 'Naranja' },
+  { value: '#7C3AED', label: 'Morado' },
+]
+
 /** Dashed strokes: dash and gap on paper, as drawn by hand for hidden lines. */
 const DASH: readonly [number, number] = [mmToPt(3), mmToPt(1.5)]
 
 /** Pencil look: width is the real lead width on paper; the softer the lead, the darker (2H < H < HB). */
 export const pencilStroke = (pencil: Pencil) => ({
-  color: GRAPHITE[pencil.hardness],
+  color: pencil.color ?? GRAPHITE[pencil.hardness],
   width: mmToPt(pencil.width),
   dash: pencil.dashed ? DASH : null,
 })

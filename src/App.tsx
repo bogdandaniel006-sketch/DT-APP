@@ -4,6 +4,7 @@ import { ContextBar } from './components/ContextBar'
 import { Credit } from './components/Credit'
 import { PageNav } from './components/PageNav'
 import { StartScreen } from './components/StartScreen'
+import { TabBar } from './components/TabBar'
 import { Toolbar } from './components/Toolbar'
 import { TopBar } from './components/TopBar'
 import { useAutosave } from './hooks/useAutosave'
@@ -13,8 +14,15 @@ import { loadPdfFile, restoreLastSession } from './state/actions'
 import { appStore } from './state/appStore'
 import { useStore } from './state/createStore'
 
-const droppedPdf = (e: DragEvent) =>
-  [...e.dataTransfer.files].find((f) => f.type === 'application/pdf' || /\.(pdf|lamina)$/i.test(f.name))
+const droppedFile = (e: DragEvent) =>
+  [...e.dataTransfer.files].find(
+    (f) => f.type === 'application/pdf' || f.type.startsWith('image/') || /\.(pdf|lamina)$/i.test(f.name),
+  )
+
+/** Files handed over by the system when a .lamina is opened with the installed app. */
+interface LaunchQueue {
+  setConsumer(consumer: (params: { files?: readonly { getFile(): Promise<File> }[] }) => void): void
+}
 
 export const App = () => {
   const phase = useStore(appStore, (s) => s.phase)
@@ -24,7 +32,28 @@ export const App = () => {
   useLockBrowserView()
 
   useEffect(() => {
-    void restoreLastSession()
+    // Files opened from the system come after the documents of the last visit, on top of them.
+    void restoreLastSession().then(() => {
+      const queue = (window as { launchQueue?: LaunchQueue }).launchQueue
+      queue?.setConsumer((params) => {
+        void (async () => {
+          for (const handle of params.files ?? []) await loadPdfFile(await handle.getFile())
+        })()
+      })
+    })
+  }, [])
+
+  // Ctrl+V with a picture in the clipboard opens it, from the start screen or from the desk.
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const image = [...(e.clipboardData?.files ?? [])].find((f) => f.type.startsWith('image/'))
+      if (!image) return
+      e.preventDefault()
+      const extension = image.type.split('/')[1]?.replace('jpeg', 'jpg') ?? 'png'
+      void loadPdfFile(new File([image], `Imagen pegada.${extension}`, { type: image.type }))
+    }
+    window.addEventListener('paste', onPaste)
+    return () => window.removeEventListener('paste', onPaste)
   }, [])
 
   useEffect(() => {
@@ -44,7 +73,7 @@ export const App = () => {
 
   const onDrop = (e: DragEvent) => {
     e.preventDefault()
-    const file = droppedPdf(e)
+    const file = droppedFile(e)
     if (file) void loadPdfFile(file)
   }
 
@@ -60,6 +89,7 @@ export const App = () => {
       {ready ? (
         <>
           <TopBar />
+          <TabBar />
           <div className="relative min-h-0 flex-1 overflow-clip">
             <Workspace spaceDown={spaceDown} />
             <Toolbar />

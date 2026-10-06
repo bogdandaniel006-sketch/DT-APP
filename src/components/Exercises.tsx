@@ -1,4 +1,4 @@
-import { ArrowLeft, BookOpen, Box, ChevronRight, Eye, Globe, GraduationCap, Mountain, Ruler, Search, Shapes, Triangle, X } from 'lucide-react'
+import { ArrowLeft, BookOpen, Box, Eye, Globe, GraduationCap, Mountain, Ruler, Search, Shapes, Triangle, X } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import {
@@ -14,6 +14,7 @@ import {
   type ExerciseTopic,
 } from '../data/exercises'
 import { loadPdfFromUrl } from '../state/actions'
+import { SheetPreview } from './SheetPreview'
 import { IconButton } from './ui/IconButton'
 
 /** A drawing for each topic's square; topics without one get the book. */
@@ -95,6 +96,8 @@ const ExercisesPanel = ({ onClose }: { onClose: () => void }) => {
   const [opening, setOpening] = useState<Exercise | null>(null)
   const [failed, setFailed] = useState<Sheet | null>(null)
   const [query, setQuery] = useState('')
+  /** Sheet being looked at before opening it. */
+  const [preview, setPreview] = useState<Sheet | null>(null)
 
   const topics = others ? OTHER_TOPICS : EXERCISE_TOPICS
 
@@ -111,14 +114,15 @@ const ExercisesPanel = ({ onClose }: { onClose: () => void }) => {
       e.stopPropagation()
       if (e.key !== 'Escape') return
       e.preventDefault()
-      if (query) setQuery('')
+      if (preview) setPreview(null)
+      else if (query) setQuery('')
       else if (topic) setTopic(null)
       else if (others) setOthers(false)
       else onClose()
     }
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
-  }, [topic, query, others, onClose])
+  }, [topic, query, others, preview, onClose])
 
   /** Puts the sheet on the desk, ready to draw on. */
   const open = async (sheet: Sheet) => {
@@ -134,25 +138,35 @@ const ExercisesPanel = ({ onClose }: { onClose: () => void }) => {
   const found = search(query, topics)
   const searching = query.trim() !== ''
 
-  /** A sheet of the index; search results also say where it belongs. */
+  /** A sheet of the index: click to open it on the desk, or the eye to look at it first. */
   const sheetRow = (sheet: Sheet, key: string, where?: string) => (
-    <button
+    <div
       key={key}
-      type="button"
-      onClick={() => void open(sheet)}
-      disabled={opening !== null}
-      className="flex w-full break-inside-avoid items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] text-ink outline-none transition-colors hover:bg-accent-soft hover:text-accent focus-visible:bg-accent-soft disabled:cursor-default disabled:hover:bg-transparent disabled:hover:text-ink"
+      className="group flex break-inside-avoid items-center rounded-lg text-[13px] text-ink transition-colors focus-within:bg-accent-soft hover:bg-accent-soft"
     >
-      <span className="min-w-0 flex-1">
-        {sheet.exercise.name}
-        {where && <span className="block truncate text-[11.5px] text-muted">{where}</span>}
-      </span>
-      {opening === sheet.exercise ? (
-        <span className="shrink-0 text-[11px] font-medium text-accent">Abriendo…</span>
-      ) : (
-        <ChevronRight size={15} className="shrink-0 text-faint" />
-      )}
-    </button>
+      <button
+        type="button"
+        onClick={() => void open(sheet)}
+        disabled={opening !== null}
+        className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg py-2 pl-2.5 pr-1 text-left outline-none group-hover:text-accent disabled:cursor-default"
+      >
+        <span className="min-w-0 flex-1">
+          {sheet.exercise.name}
+          {where && <span className="block truncate text-[11.5px] text-muted">{where}</span>}
+        </span>
+        {opening === sheet.exercise && <span className="shrink-0 text-[11px] font-medium text-accent">Abriendo…</span>}
+      </button>
+      <button
+        type="button"
+        aria-label={`Vista previa de ${sheet.exercise.name}`}
+        title="Vista previa"
+        onClick={() => setPreview(sheet)}
+        disabled={opening !== null}
+        className="mr-1 grid h-7 w-7 shrink-0 place-items-center rounded-md text-faint outline-none transition-colors hover:bg-white hover:text-accent focus-visible:bg-white focus-visible:text-accent"
+      >
+        <Eye size={15} />
+      </button>
+    </div>
   )
 
   const credit = (source: ExerciseSource) => (
@@ -326,6 +340,16 @@ const ExercisesPanel = ({ onClose }: { onClose: () => void }) => {
           )}
         </footer>
       </section>
+      {preview && (
+        <SheetPreview
+          url={exerciseLocalUrl(preview.exercise, preview.source)}
+          name={preview.exercise.name}
+          site={preview.source.site}
+          opening={opening !== null}
+          onOpen={() => void open(preview)}
+          onBack={() => setPreview(null)}
+        />
+      )}
     </div>,
     document.body,
   )

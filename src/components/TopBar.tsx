@@ -256,7 +256,7 @@ export const TopBar = () => {
         <IconButton label="Menú principal" onClick={goToStart}>
           <House size={18} />
         </IconButton>
-        <IconButton label="Abrir PDF o proyecto" shortcut="Ctrl O" onClick={() => void openPdfDialog()}>
+        <IconButton label="Abrir PDF, imagen o proyecto" shortcut="Ctrl O" onClick={() => void openPdfDialog()}>
           <FolderOpen size={18} />
         </IconButton>
         <ExercisesButton variant="bar" />

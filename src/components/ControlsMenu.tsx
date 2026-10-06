@@ -56,7 +56,8 @@ const FIXED: { title: string; controls: Control[] }[] = [
     controls: [
       { keys: 'Ctrl Z', action: 'Deshacer' },
       { keys: 'Ctrl ⇧ Z · Ctrl Y', action: 'Rehacer' },
-      { keys: 'Ctrl O', action: 'Abrir PDF o proyecto' },
+      { keys: 'Ctrl O', action: 'Abrir PDF, imagen o proyecto' },
+      { keys: 'Ctrl V', action: 'Abre la imagen copiada en una pestaña nueva' },
     ],
   },
 ]

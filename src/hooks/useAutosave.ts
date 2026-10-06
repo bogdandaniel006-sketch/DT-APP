@@ -7,12 +7,20 @@ const DELAY_MS = 400
 
 type Settings = Pick<AppState, 'pencil' | 'layer' | 'snapMode' | 'loupe' | 'measuresVisible'>
 
+let flushNow: (() => void) | null = null
+
+/** Writes at once the save that is waiting for its delay (before changing or closing a document). */
+export const flushAutosave = () => flushNow?.()
+
 /** Persists the drawing (per PDF) and the pencil/layer choice to localStorage. */
 export const useAutosave = () => {
   useEffect(() => {
     const settings = loadSettings<Settings>()
-    // The dashed stroke is never picked automatically, not even from the last session.
-    if (settings.pencil) appStore.set({ pencil: { ...settings.pencil, dashed: false } })
+    // Dashes and colour are never picked automatically, not even from the last session.
+    if (settings.pencil) {
+      const { width, hardness } = settings.pencil
+      appStore.set({ pencil: { width, hardness } })
+    }
     if (settings.layer) appStore.set({ layer: settings.layer })
     if (settings.snapMode) appStore.set({ snapMode: settings.snapMode })
     if (typeof settings.loupe === 'boolean') appStore.set({ loupe: settings.loupe })
@@ -61,6 +69,7 @@ export const useAutosave = () => {
       if (document.visibilityState === 'hidden') flush()
     }
 
+    flushNow = flush
     const unsubDoc = documentStore.subscribe(schedule)
     const unsubApp = appStore.subscribe(schedule)
     window.addEventListener('pagehide', flush)
@@ -71,6 +80,7 @@ export const useAutosave = () => {
       window.removeEventListener('pagehide', flush)
       document.removeEventListener('visibilitychange', onHide)
       flush()
+      flushNow = null
     }
   }, [])
 }

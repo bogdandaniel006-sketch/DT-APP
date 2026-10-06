@@ -33,6 +33,8 @@ export interface Pencil {
   hardness: PencilHardness
   /** Dashed stroke. Only ever set by hand: no layer or default turns it on. */
   dashed?: boolean
+  /** Colour other than graphite (hex). Like dashes, only ever set by hand. */
+  color?: string
 }
 
 /** Everything stored in the document, in the coordinates of its page. */

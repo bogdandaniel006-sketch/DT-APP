@@ -10,6 +10,8 @@ import { isGeometry, type Pencil, type PencilHardness, type PencilWidth, type To
 import { distance } from '../geometry/primitives'
 import { MAX_NAME_LENGTH, normalizePointName } from '../utils/pointNames'
 import { formatCoordinate, formatLength } from '../utils/format'
+import { PENCIL_COLORS } from '../canvas/style'
+import { Popover } from './ui/Popover'
 import { Segmented } from './ui/Segmented'
 import { Tooltip } from './ui/Tooltip'
 
@@ -30,7 +32,51 @@ const STROKES = [
   { value: 'dashed', label: 'Discontinua' },
 ] as const
 
+/** How graphite shows in the colour picker (the real shade depends on the lead). */
+const GRAPHITE_SWATCH = '#1F2329'
+
 const Divider = () => <div className="h-5 w-px bg-black/[0.07]" />
+
+const SWATCH = 'h-5 w-5 rounded-full outline-none ring-offset-2 transition-transform hover:scale-110 focus-visible:ring-2 focus-visible:ring-accent/60'
+
+/** Colour of the stroke, tucked behind a small dot: graphite unless another is picked by hand. */
+const ColorPicker = ({ color, onChange }: { color: string | undefined; onChange: (color: string | undefined) => void }) => (
+  <Popover
+    side="top"
+    align="right"
+    trigger={({ toggle }) => (
+      <Tooltip label="Color del trazo" side="top">
+        <button
+          type="button"
+          aria-label="Color del trazo"
+          onClick={toggle}
+          className="grid h-7 w-7 place-items-center rounded-lg outline-none transition-colors hover:bg-black/[0.04] focus-visible:ring-2 focus-visible:ring-accent/40"
+        >
+          <span className="h-3.5 w-3.5 rounded-full" style={{ background: color ?? GRAPHITE_SWATCH }} />
+        </button>
+      </Tooltip>
+    )}
+  >
+    {(close) => (
+      <div className="flex items-center gap-2 px-1.5 py-1">
+        {[{ value: undefined, label: 'Grafito' }, ...PENCIL_COLORS].map((c) => (
+          <button
+            key={c.label}
+            type="button"
+            aria-label={c.label}
+            title={c.label}
+            onClick={() => {
+              onChange(c.value)
+              close()
+            }}
+            className={`${SWATCH} ${c.value === color ? 'ring-2 ring-accent' : ''}`}
+            style={{ background: c.value ?? GRAPHITE_SWATCH }}
+          />
+        ))}
+      </div>
+    )}
+  </Popover>
+)
 
 const PencilPicker = ({ pencil, onChange }: { pencil: Pencil; onChange: (p: Pencil) => void }) => (
   <div className="flex items-center gap-1.5">
@@ -53,6 +99,7 @@ const PencilPicker = ({ pencil, onChange }: { pencil: Pencil; onChange: (p: Penc
       options={STROKES}
       onChange={(stroke) => onChange({ ...pencil, dashed: stroke === 'dashed' })}
     />
+    <ColorPicker color={pencil.color} onChange={(color) => onChange({ ...pencil, color })} />
   </div>
 )
 
@@ -175,7 +222,8 @@ const SelectionInfo = ({ ids }: { ids: readonly string[] }) => {
     (s) =>
       s.pencil.width === first.pencil.width &&
       s.pencil.hardness === first.pencil.hardness &&
-      !s.pencil.dashed === !first.pencil.dashed,
+      !s.pencil.dashed === !first.pencil.dashed &&
+      s.pencil.color === first.pencil.color,
   )
   // Contextual facts, read from the exact document coordinates.
   let info: string[] = single ? measurements(first) : []

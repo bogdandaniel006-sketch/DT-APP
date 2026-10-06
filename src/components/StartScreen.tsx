@@ -1,7 +1,8 @@
-import { ArrowLeft, FolderOpen } from 'lucide-react'
-import { resumeWorkspace } from '../state/actions'
+import { ArrowLeft, File, FolderOpen } from 'lucide-react'
+import { newBlankSheet, resumeWorkspace } from '../state/actions'
 import { appStore } from '../state/appStore'
 import { useStore } from '../state/createStore'
+import { baseName } from '../utils/download'
 import { Credit } from './Credit'
 import { ExercisesButton } from './Exercises'
 import { openPdfDialog } from './TopBar'
@@ -40,8 +41,18 @@ export const StartScreen = () => {
           className="mt-8 flex h-12 items-center gap-2.5 rounded-2xl bg-white px-6 text-[15px] font-medium text-ink shadow-[var(--shadow-float)] outline-none transition-all duration-200 hover:-translate-y-px hover:shadow-[var(--shadow-float-hover)] focus-visible:ring-2 focus-visible:ring-accent/40 disabled:opacity-60"
         >
           <FolderOpen size={18} className="text-accent" />
-          {loading ? 'Abriendo…' : 'Abrir PDF'}
+          {loading ? 'Abriendo…' : 'Abrir PDF o imagen'}
         </button>
+        <button
+          type="button"
+          onClick={() => void newBlankSheet()}
+          disabled={loading}
+          className="mt-3 flex h-12 items-center gap-2.5 rounded-2xl bg-white px-6 text-[15px] font-medium text-ink shadow-[var(--shadow-float)] outline-none transition-all duration-200 hover:-translate-y-px hover:shadow-[var(--shadow-float-hover)] focus-visible:ring-2 focus-visible:ring-accent/40 disabled:opacity-60"
+        >
+          <File size={18} className="text-accent" />
+          Hoja en blanco
+        </button>
+        <ExercisesButton variant="start" />
         {fileName && !loading && (
           <button
             type="button"
@@ -49,11 +60,10 @@ export const StartScreen = () => {
             className="mt-3 flex h-9 max-w-[80vw] items-center gap-1.5 rounded-xl px-3 text-[13px] font-medium text-accent outline-none transition-colors hover:bg-accent-soft focus-visible:ring-2 focus-visible:ring-accent/40"
           >
             <ArrowLeft size={15} className="shrink-0" />
-            <span className="truncate">Volver a {fileName}</span>
+            <span className="truncate">Volver a {baseName(fileName)}</span>
           </button>
         )}
-        <ExercisesButton variant="start" />
-        <p className="mt-4 text-[13px] text-muted">Abre un ejercicio en PDF o un proyecto guardado (.lamina) y empieza a construir.</p>
+        <p className="mt-4 text-[13px] text-muted">Abre un PDF, una imagen o un proyecto (.lamina), o pega una imagen con Ctrl + V.</p>
         {error && <p className="mt-4 text-[13px] text-red-600">{error}</p>}
       </div>
     </main>
