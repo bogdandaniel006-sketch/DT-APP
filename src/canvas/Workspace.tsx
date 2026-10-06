@@ -25,6 +25,7 @@ import { NamePopover } from './NamePopover'
 import { OverlayLayer } from './OverlayLayer'
 import { PdfPages } from './PdfPageLayer'
 import { ShapesLayer } from './ShapesLayer'
+import { TextEditor } from './TextEditor'
 
 const HIT_PX = 7
 const INSTRUMENTS: InstrumentKind[] = ['escuadra', 'cartabon']
@@ -47,6 +48,8 @@ export const Workspace = ({ spaceDown }: { spaceDown: boolean }) => {
   const instruments = useStore(appStore, (s) => s.instruments)
   const snapMode = useStore(appStore, (s) => s.snapMode)
   const loupe = useStore(appStore, (s) => s.loupe)
+  /** Text being rewritten: its box replaces it on the sheet meanwhile. */
+  const editingText = useStore(appStore, (s) => (s.naming?.text ? s.naming.id : undefined))
   const measuresVisible = useStore(appStore, (s) => s.measuresVisible)
   const detected = useStore(detectionStore, (s) => s.pages)
   useStore(appStore, (s) => s.compassRadius)
@@ -272,7 +275,7 @@ export const Workspace = ({ spaceDown }: { spaceDown: boolean }) => {
       <PdfPages rects={pageRects} fingerprint={fingerprint} view={view} visible={pdfVisible} />
       <svg className="pointer-events-none absolute inset-0 h-full w-full overflow-visible">
         <g transform={`translate(${view.x} ${view.y}) scale(${view.scale})`}>
-          <ShapesLayer shapes={geometryShapes} strokesNear={strokesNear} selection={selection} scale={view.scale} />
+          <ShapesLayer shapes={geometryShapes} strokesNear={strokesNear} selection={selection} editingId={editingText} scale={view.scale} />
           {INSTRUMENTS.map((k) => (
             <InstrumentBody key={k} kind={k} state={instruments[k]} scale={view.scale} active={toolId === k} />
           ))}
@@ -291,6 +294,7 @@ export const Workspace = ({ spaceDown }: { spaceDown: boolean }) => {
         />
       )}
       <NamePopover view={view} />
+      <TextEditor view={view} />
     </div>
   )
 }

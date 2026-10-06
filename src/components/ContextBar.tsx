@@ -1,4 +1,4 @@
-import { EyeOff, FlipVertical2, Ruler, Trash2, X } from 'lucide-react'
+import { EyeOff, FlipVertical2, Pencil as PencilIcon, Ruler, Trash2, X } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { measurements, shapeName } from '../geometry/shapes'
 import { appStore, flipInstrument, hideInstrument, setTool } from '../state/appStore'
@@ -8,7 +8,9 @@ import { shortcutLabel, shortcutStore } from '../state/shortcuts'
 import { toolTick, tools } from '../tools/registry'
 import { isGeometry, isText, type Pencil, type PencilHardness, type PencilWidth, type ToolId } from '../types'
 import { distance } from '../geometry/primitives'
-import { MAX_TEXT_LENGTH } from '../geometry/text'
+import { pageOffset } from '../geometry/layout'
+import { DEFAULT_TEXT_MM, MAX_TEXT_LENGTH, TEXT_SIZES_MM } from '../geometry/text'
+import { add } from '../geometry/vec'
 import { MAX_NAME_LENGTH, normalizePointName } from '../utils/pointNames'
 import { formatCoordinate, formatLength } from '../utils/format'
 import { dimensionFigure } from '../canvas/dimension'
@@ -244,13 +246,32 @@ const SelectionInfo = ({ ids }: { ids: readonly string[] }) => {
   return (
     <>
       <span className="text-[12.5px] font-medium text-ink">{single ? (writing ? 'Texto' : first.kind === 'segment' && first.dimension ? 'Cota' : shapeName(first)) : `${selected.length} elementos`}</span>
-      {single && isGeometry(first) && (
+      {single && isGeometry(first) && !writing && (
         <NameField
           id={first.id}
           name={first.name ?? ''}
-          writing={writing}
+          writing={false}
           {...(first.kind === 'segment' && first.dimension && { label: 'Cifra', placeholder: dimensionFigure(first.a, first.b) })}
         />
+      )}
+      {single && first.kind === 'point' && writing && (
+        <>
+          <TextSizePicker
+            value={first.size ?? DEFAULT_TEXT_MM}
+            onChange={(size) => documentActions.update([first.id], (s) => ({ ...s, size }))}
+          />
+          <TextButton
+            icon={<PencilIcon size={14} />}
+            onClick={() => {
+              // Its box opens on the sheet, where the text is.
+              const { pageRects } = appStore.get()
+              const p = add(first.p, pageOffset(pageRects, first.page))
+              appStore.set({ tool: 'text', selection: [], naming: { p, id: first.id, value: first.name ?? '', text: true } })
+            }}
+          >
+            Editar
+          </TextButton>
+        </>
       )}
       {info.length > 0 && <Info>{info.join(' · ')}</Info>}
       {geometry.length > 0 && (
@@ -277,6 +298,16 @@ const SelectionInfo = ({ ids }: { ids: readonly string[] }) => {
   )
 }
 
+const TEXT_SIZE_OPTIONS = TEXT_SIZES_MM.map((mm) => ({ value: mm as number, label: String(mm).replace('.', ',') }))
+
+/** Letter height of a text, in millimetres on paper. */
+const TextSizePicker = ({ value, onChange }: { value: number; onChange: (mm: number) => void }) => (
+  <div className="flex items-center gap-1.5">
+    <span className="text-[11px] font-medium uppercase tracking-wider text-faint">Tamaño</span>
+    <Segmented<number> label="Tamaño del texto" value={value} options={TEXT_SIZE_OPTIONS} onChange={onChange} />
+  </div>
+)
+
 const MeasureOptions = ({ tool }: { tool: 'measure-distance' | 'measure-angle' }) => (
   <Segmented<'measure-distance' | 'measure-angle'>
     label="Medir"
@@ -293,6 +324,7 @@ const MeasureOptions = ({ tool }: { tool: 'measure-distance' | 'measure-angle' }
 export const ContextBar = () => {
   const tool = useStore(appStore, (s) => s.tool)
   const pencil = useStore(appStore, (s) => s.pencil)
+  const textSize = useStore(appStore, (s) => s.textSize)
   const selection = useStore(appStore, (s) => s.selection)
   useStore(appStore, (s) => s.measuring)
   useStore(appStore, (s) => s.compassRadius)
@@ -326,6 +358,12 @@ export const ContextBar = () => {
             <MeasureOptions tool={measureTool} />
           ) : (
             <>
+              {tool === 'text' && (
+                <>
+                  <TextSizePicker value={textSize} onChange={(size) => appStore.set({ textSize: size })} />
+                  <Divider />
+                </>
+              )}
               <PencilPicker pencil={pencil} onChange={(p) => appStore.set({ pencil: p })} />
               {(tool === 'compass' || tool === 'arc') && (
                 <>

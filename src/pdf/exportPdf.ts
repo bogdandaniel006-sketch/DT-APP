@@ -3,7 +3,7 @@ import { DIMENSION_SIZE, dimensionFigure, dimensionParts } from '../canvas/dimen
 import { NAME_SIZE, nameAnchor, nameReach, placeName } from '../canvas/pointLabel'
 import { LAYER_OPACITY, pencilStroke } from '../canvas/style'
 import { pointOnCircle } from '../geometry/primitives'
-import { TEXT_SIZE } from '../geometry/text'
+import { LINE_HEIGHT, textLines, textSize } from '../geometry/text'
 import { mmToPt } from '../geometry/units'
 import { isGeometry, type Shape, type Vec } from '../types'
 import { baseName, downloadBlob } from '../utils/download'
@@ -74,7 +74,9 @@ export const exportPdf = async (shapes: readonly Shape[]) => {
         }
         case 'point': {
           if (s.text) {
-            await write(s.name ?? '', s.p, TEXT_SIZE)
+            const size = textSize(s.size)
+            const lines = textLines(s.name ?? '')
+            for (let i = 0; i < lines.length; i++) await write(lines[i]!, { x: s.p.x, y: s.p.y + i * size * LINE_HEIGHT }, size)
             break
           }
           const c = toPdf(s.p)

@@ -47,6 +47,8 @@ export type Shape = Drawable & {
   name?: string
   /** A point that is a piece of writing: no dot, and its name is the text. */
   text?: boolean
+  /** Letter height of a text, in millimetres on paper (the usual one when absent). */
+  size?: number
   /** A segment that is a dimension line: arrowheads and its figure (the name, or else the length). */
   dimension?: boolean
 }

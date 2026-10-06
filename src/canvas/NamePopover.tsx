@@ -1,7 +1,6 @@
 import { Check } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { deskToDocument, deskToScreen } from '../geometry/coords'
-import { MAX_TEXT_LENGTH } from '../geometry/text'
 import { appStore } from '../state/appStore'
 import { useStore } from '../state/createStore'
 import { documentActions } from '../state/documentStore'
@@ -10,12 +9,13 @@ import { newId } from '../utils/id'
 import { MAX_NAME_LENGTH, normalizePointName } from '../utils/pointNames'
 
 /**
- * A small field next to a point of the desk, for two things: "Nombrar punto" (naming a detected
- * PDF point turns it into a real point at its exact coordinates; naming an existing point renames
- * it) and writing a text, which is stored as a point without a dot whose name is what is written.
+ * "Nombrar punto": a small field next to a point. Naming a detected PDF point
+ * turns it into a real point at its exact coordinates; naming an existing point renames it.
+ * (Writing a text has its own box on the sheet: see TextEditor.)
  */
 export const NamePopover = ({ view }: { view: View }) => {
-  const naming = useStore(appStore, (s) => s.naming)
+  const request = useStore(appStore, (s) => s.naming)
+  const naming = request?.text ? null : request
   const [value, setValue] = useState('')
   const input = useRef<HTMLInputElement>(null)
 
@@ -27,10 +27,9 @@ export const NamePopover = ({ view }: { view: View }) => {
 
   if (!naming) return null
   const at = deskToScreen(view, naming.p)
-  const writing = naming.text === true
 
   const save = () => {
-    const name = writing ? value.trim().slice(0, MAX_TEXT_LENGTH) : normalizePointName(value)
+    const name = normalizePointName(value)
     const close = { naming: null }
     if (!name) return appStore.set(close)
     if (naming.id) {
@@ -40,10 +39,9 @@ export const NamePopover = ({ view }: { view: View }) => {
     }
     const { pageRects, pencil, layer } = appStore.get()
     const { page, p } = deskToDocument(pageRects, naming.p)
-    const point = { kind: 'point', p, id: newId(), page, layer, pencil, name, ...(writing && { text: true }) } as Shape
+    const point = { kind: 'point', p, id: newId(), page, layer, pencil, name } as Shape
     documentActions.add([point])
-    // A named point is left selected to carry on with it; after a text, the next text can follow.
-    appStore.set(writing ? close : { ...close, selection: [point.id], tool: 'select' })
+    appStore.set({ ...close, selection: [point.id], tool: 'select' })
   }
 
   return (
@@ -58,14 +56,13 @@ export const NamePopover = ({ view }: { view: View }) => {
       data-testid="name-popover"
     >
       <label className="text-[11px] font-medium uppercase tracking-wider text-faint" htmlFor="point-name">
-        {writing ? 'Texto' : naming.id ? 'Nombre' : 'Nombrar punto'}
+        {naming.id ? 'Nombre' : 'Nombrar punto'}
       </label>
       <input
         id="point-name"
         ref={input}
         value={value}
-        maxLength={writing ? MAX_TEXT_LENGTH : MAX_NAME_LENGTH}
-        placeholder={writing ? 'Escribe y pulsa Enter' : undefined}
+        maxLength={MAX_NAME_LENGTH}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === 'Escape') appStore.set({ naming: null })
@@ -73,9 +70,7 @@ export const NamePopover = ({ view }: { view: View }) => {
         }}
         autoComplete="off"
         spellCheck={false}
-        className={`h-7 rounded-md bg-black/[0.04] px-2 text-[13px] text-ink outline-none focus:bg-accent-soft focus:text-accent ${
-          writing ? 'w-64' : 'w-16 text-center font-semibold'
-        }`}
+        className="h-7 w-16 rounded-md bg-black/[0.04] px-2 text-center text-[13px] font-semibold text-ink outline-none focus:bg-accent-soft focus:text-accent"
       />
       <button
         type="submit"

@@ -2,7 +2,7 @@ import { DIMENSION_SIZE, dimensionFigure, dimensionParts } from '../canvas/dimen
 import { geometryPath } from '../canvas/paths'
 import { NAME_SIZE, nameAnchor, nameReach, placeName } from '../canvas/pointLabel'
 import { LAYER_OPACITY, pencilStroke } from '../canvas/style'
-import { TEXT_SIZE } from '../geometry/text'
+import { LINE_HEIGHT, textLines, textSize } from '../geometry/text'
 import { mmToPt } from '../geometry/units'
 import { isGeometry, type Shape, type Vec } from '../types'
 import { baseName, downloadBlob } from '../utils/download'
@@ -46,8 +46,9 @@ export const exportPng = async (shapes: readonly Shape[], pageIndex: number, inc
     }
     ctx.fillStyle = color
     if (s.kind === 'point' && s.text) {
-      ctx.font = `500 ${TEXT_SIZE}px Inter, system-ui, sans-serif`
-      ctx.fillText(s.name ?? '', s.p.x, s.p.y)
+      const size = textSize(s.size)
+      ctx.font = `500 ${size}px Inter, system-ui, sans-serif`
+      textLines(s.name ?? '').forEach((line, i) => ctx.fillText(line, s.p.x, s.p.y + i * size * LINE_HEIGHT))
     } else if (s.kind === 'point') {
       ctx.fill(path)
       if (s.name) writeName(s.p, s.name)

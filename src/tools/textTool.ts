@@ -28,7 +28,7 @@ export const createTextTool = (): Tool => {
       return []
     },
     hint() {
-      return 'Clic donde empieza el texto y escribe · clic sobre un texto para cambiarlo'
+      return 'Clic donde empieza el texto y escribe (Enter: nueva línea) · clic sobre un texto para cambiarlo'
     },
     cursor() {
       return over ? 'pointer' : 'text'

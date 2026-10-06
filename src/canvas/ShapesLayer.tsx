@@ -1,5 +1,5 @@
 import { memo } from 'react'
-import { MIN_TEXT_PX, TEXT_SIZE } from '../geometry/text'
+import { LINE_HEIGHT, textLines, textSize } from '../geometry/text'
 import { mmToPt } from '../geometry/units'
 import type { Geometry, GeometryShape, Vec } from '../types'
 import { ARROW_LENGTH, DIMENSION_SIZE, dimensionFigure, dimensionParts } from './dimension'
@@ -18,6 +18,8 @@ interface Props {
   /** Strokes (drawn or of the PDF) around a point, which its name should not cover. */
   strokesNear: (p: Vec, r: number) => readonly Geometry[]
   selection: ReadonlySet<string>
+  /** Text being rewritten in its box, which is not drawn meanwhile. */
+  editingId?: string
   scale: number
 }
 
@@ -38,7 +40,7 @@ const Letters = ({ at, size, fill, children }: { at: Vec; size: number; fill: st
   </text>
 )
 
-export const ShapesLayer = memo(({ shapes, strokesNear, selection, scale }: Props) => (
+export const ShapesLayer = memo(({ shapes, strokesNear, selection, editingId, scale }: Props) => (
   <g strokeLinecap="round" strokeLinejoin="round" fill="none">
     {shapes.map((s) => {
       const { color, width, dash } = pencilStroke(s.pencil)
@@ -50,13 +52,30 @@ export const ShapesLayer = memo(({ shapes, strokesNear, selection, scale }: Prop
       const nameAt = (anchor: Vec, name: string) => placeName(anchor, name, nameSize, strokesNear(anchor, nameReach(name, nameSize)))
 
       if (s.kind === 'point' && s.text) {
-        // Written text: no dot, and it starts exactly where it was put.
+        // While a text is being rewritten its box shows it; drawing it too would double the letters.
+        if (s.id === editingId) return null
+        // Written text: no dot, it starts exactly where it was put, at its true size, line under line.
+        const size = textSize(s.size)
         return (
-          <g key={s.id} opacity={opacity}>
-            <Letters at={s.p} size={Math.max(TEXT_SIZE, MIN_TEXT_PX / scale)} fill={stroke}>
-              {s.name ?? ''}
-            </Letters>
-          </g>
+          <text
+            key={s.id}
+            opacity={opacity}
+            x={s.p.x}
+            y={s.p.y}
+            fontSize={size}
+            fill={stroke}
+            stroke="white"
+            strokeWidth={size * 0.12}
+            paintOrder="stroke"
+            className="point-name"
+            style={{ whiteSpace: 'pre' }}
+          >
+            {textLines(s.name ?? '').map((line, i) => (
+              <tspan key={i} x={s.p.x} dy={i ? size * LINE_HEIGHT : 0}>
+                {line || ' '}
+              </tspan>
+            ))}
+          </text>
         )
       }
       if (s.kind === 'point') {

@@ -1,5 +1,6 @@
 import type { InstrumentKind, InstrumentState, LayerId, Pencil, SnapMode, ToolId, Vec, View } from '../types'
 import { pageAt, type PageRect } from '../geometry/layout'
+import { DEFAULT_TEXT_MM } from '../geometry/text'
 import { mmToPt, PX_PER_PT } from '../geometry/units'
 import { LAYER_PENCIL } from '../canvas/style'
 import type { StoredTab } from '../utils/storage'
@@ -43,6 +44,8 @@ export interface AppState {
   measuresVisible: boolean
   /** Naming popover: a detected point (no id) or an existing point (id). Desk coordinates. */
   naming: NamingRequest | null
+  /** Letter height new texts are written with, in millimetres on paper. */
+  textSize: number
 }
 
 export interface NamingRequest {
@@ -88,6 +91,7 @@ export const appStore = createStore<AppState>({
   loupe: false,
   measuresVisible: true,
   naming: null,
+  textSize: DEFAULT_TEXT_MM,
 })
 
 export const MIN_SCALE = 0.1
