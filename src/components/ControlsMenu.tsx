@@ -35,6 +35,7 @@ const FIXED: { title: string; controls: Control[] }[] = [
     controls: [
       { keys: 'Shift + clic', action: 'Añade o quita un trazo de la selección' },
       { keys: 'Arrastrar', action: 'Selecciona varios trazos con un recuadro' },
+      { keys: 'Ctrl D', action: 'Duplica los trazos seleccionados' },
       { keys: 'Supr', action: 'Borra la selección; sin selección, herramienta Borrar' },
     ],
   },

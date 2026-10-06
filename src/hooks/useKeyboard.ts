@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { openPdfDialog } from '../components/TopBar'
-import { goToPage } from '../state/actions'
+import { duplicateSelection, goToPage } from '../state/actions'
 import { appStore, flipInstrument, setLayer, setTool, viewActions } from '../state/appStore'
 import { documentActions } from '../state/documentStore'
 import { bumpTools, tools } from '../tools/registry'
@@ -24,6 +24,7 @@ export const useKeyboard = (enabled: boolean): boolean => {
         if (key === 'z') documentActions[e.shiftKey ? 'redo' : 'undo']()
         else if (key === 'y') documentActions.redo()
         else if (key === 'o') void openPdfDialog()
+        else if (key === 'd') duplicateSelection()
         else if (key === '0') viewActions.fitPage()
         else if (key === '1') viewActions.setPercent(100)
         else if (key === '=' || key === '+') viewActions.zoomBy(1.25)

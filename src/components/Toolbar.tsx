@@ -47,7 +47,7 @@ export const Toolbar = () => {
   return (
     <nav
       aria-label="Herramientas"
-      className="float absolute left-4 top-4 z-20 flex flex-col gap-1 rounded-2xl p-1.5"
+      className="float absolute left-4 top-4 z-20 grid grid-cols-2 gap-1 rounded-2xl p-1.5"
     >
       {TOOLS.map((t) => {
         // One button for both measuring modes; the bottom bar switches between them.
@@ -55,7 +55,6 @@ export const Toolbar = () => {
         const instrumentOn = (t.id === 'escuadra' || t.id === 'cartabon') && instruments[t.id].visible
         return (
           <div key={t.id} className="relative">
-            {active && <span className="absolute -left-1.5 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r-full bg-accent" />}
             <IconButton
               label={instrumentOn && active ? `${t.label} · clic para guardarla` : t.label}
               shortcut={t.shortcut ?? shortcutLabel(keys[t.id as ShortcutId])}
@@ -69,8 +68,10 @@ export const Toolbar = () => {
           </div>
         )
       })}
-      <div className="mx-2 my-1 h-px bg-black/[0.06]" />
-      <LayerMenu />
+      <div className="col-span-2 mx-2 my-1 h-px bg-black/[0.06]" />
+      <div className="col-span-2 flex justify-center">
+        <LayerMenu />
+      </div>
     </nav>
   )
 }

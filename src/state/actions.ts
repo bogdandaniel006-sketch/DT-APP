@@ -1,4 +1,6 @@
 import { layoutPages } from '../geometry/layout'
+import { translateGeometry } from '../geometry/shapes'
+import { mmToPt } from '../geometry/units'
 import { flushAutosave } from '../hooks/useAutosave'
 import { startDetection } from '../pdf/detect'
 import { blankPdf, imagePdf, withBlankPage, type SheetFormat } from '../pdf/make'
@@ -311,6 +313,22 @@ export const resumeWorkspace = async () => {
   appStore.set({ phase: 'ready', error: null })
   await nextFrame()
   viewActions.fitPage(page)
+}
+
+/** How far a duplicate lands from its original, right and down: close, but clearly another stroke. */
+const DUPLICATE_OFFSET = mmToPt(5)
+
+/** Copies the selected strokes next to themselves and leaves the copies selected, ready to be moved. */
+export const duplicateSelection = () => {
+  const ids = new Set(appStore.get().selection)
+  const copies = documentStore
+    .get()
+    .shapes.filter((s) => ids.has(s.id))
+    .map((s) => ({ ...translateGeometry(s, { x: DUPLICATE_OFFSET, y: DUPLICATE_OFFSET }), id: newId() }))
+  if (!copies.length) return
+  cancelAllTools()
+  documentActions.add(copies)
+  appStore.set({ tool: 'select', selection: copies.map((s) => s.id) })
 }
 
 /** Brings a sheet into view. Constructions in progress are kept: pages share one desk. */
