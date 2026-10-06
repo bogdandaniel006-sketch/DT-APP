@@ -47,7 +47,7 @@ export const Toolbar = () => {
   return (
     <nav
       aria-label="Herramientas"
-      className="float absolute left-4 top-1/2 z-20 flex -translate-y-1/2 flex-col gap-1 rounded-2xl p-1.5"
+      className="float absolute left-4 top-4 z-20 flex flex-col gap-1 rounded-2xl p-1.5"
     >
       {TOOLS.map((t) => {
         // One button for both measuring modes; the bottom bar switches between them.
