@@ -1,4 +1,4 @@
-import { DraftingCompass, Eraser, MousePointer2, RulerDimensionLine, Slash, Type } from 'lucide-react'
+import { DraftingCompass, Eraser, MousePointer2, MoveHorizontal, RulerDimensionLine, Slash, Type } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { appStore, hideInstrument, setTool } from '../state/appStore'
 import { useStore } from '../state/createStore'
@@ -28,6 +28,7 @@ export const TOOLS: readonly ToolDef[] = [
   { id: 'escuadra', label: 'Escuadra', icon: <EscuadraIcon /> },
   { id: 'cartabon', label: 'Cartabón', icon: <CartabonIcon /> },
   { id: 'measure-distance', label: 'Medir distancia y ángulo', icon: <RulerDimensionLine size={18} /> },
+  { id: 'dimension', label: 'Cota', icon: <MoveHorizontal size={18} /> },
   { id: 'text', label: 'Texto', icon: <Type size={18} /> },
   { id: 'eraser', label: 'Borrar', shortcut: 'Supr', icon: <Eraser size={18} /> },
 ]

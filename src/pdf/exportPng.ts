@@ -1,3 +1,4 @@
+import { DIMENSION_SIZE, dimensionFigure, dimensionParts } from '../canvas/dimension'
 import { geometryPath } from '../canvas/paths'
 import { NAME_SIZE, nameAnchor, nameReach, placeName } from '../canvas/pointLabel'
 import { LAYER_OPACITY, pencilStroke } from '../canvas/style'
@@ -50,6 +51,20 @@ export const exportPng = async (shapes: readonly Shape[], pageIndex: number, inc
     } else if (s.kind === 'point') {
       ctx.fill(path)
       if (s.name) writeName(s.p, s.name)
+    } else if (s.kind === 'segment' && s.dimension) {
+      ctx.strokeStyle = color
+      ctx.lineWidth = width
+      ctx.stroke(path)
+      const { arrows, figureAt, angle } = dimensionParts(s.a, s.b)
+      for (const [tip, left, right] of arrows) ctx.fill(new Path2D(`M${tip.x} ${tip.y}L${left.x} ${left.y}L${right.x} ${right.y}Z`))
+      ctx.save()
+      ctx.translate(figureAt.x, figureAt.y)
+      ctx.rotate(angle)
+      ctx.setLineDash([])
+      ctx.font = `500 ${DIMENSION_SIZE}px Inter, system-ui, sans-serif`
+      ctx.textAlign = 'center'
+      ctx.fillText(s.name ?? dimensionFigure(s.a, s.b), 0, 0)
+      ctx.restore()
     } else {
       ctx.strokeStyle = color
       ctx.lineWidth = width

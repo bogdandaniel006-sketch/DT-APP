@@ -1,4 +1,5 @@
-import { LineCapStyle, PDFDocument, StandardFonts, rgb, type PDFFont } from 'pdf-lib'
+import { LineCapStyle, PDFDocument, StandardFonts, degrees, rgb, type PDFFont } from 'pdf-lib'
+import { DIMENSION_SIZE, dimensionFigure, dimensionParts } from '../canvas/dimension'
 import { NAME_SIZE, nameAnchor, nameReach, placeName } from '../canvas/pointLabel'
 import { LAYER_OPACITY, pencilStroke } from '../canvas/style'
 import { pointOnCircle } from '../geometry/primitives'
@@ -7,6 +8,7 @@ import { mmToPt } from '../geometry/units'
 import { isGeometry, type Shape, type Vec } from '../types'
 import { baseName, downloadBlob } from '../utils/download'
 import { detectedNear } from './detect'
+import { stamp } from './make'
 import { getSession } from './session'
 
 const hexToRgb = (hex: string) => {
@@ -98,11 +100,33 @@ export const exportPdf = async (shapes: readonly Shape[]) => {
           })
         }
       }
-      // Names of lines and curves, placed as on screen.
-      if (isGeometry(s) && s.kind !== 'point' && s.name) await write(s.name, nameAt(nameAnchor(s), s.name), NAME_SIZE)
+      if (s.kind === 'segment' && s.dimension) {
+        // A dimension: its arrowheads, and its figure written along the line.
+        const { arrows, figureAt, angle } = dimensionParts(s.a, s.b)
+        for (const corners of arrows) {
+          const [tip, left, right] = corners.map(toPdf) as [Vec, Vec, Vec]
+          // drawSvgPath flips y around the origin, so feed it -y.
+          page.drawSvgPath(`M${tip.x} ${-tip.y}L${left.x} ${-left.y}L${right.x} ${-right.y}Z`, { x: 0, y: 0, color: style.color, opacity: style.opacity })
+        }
+        const used = (font ??= await out.embedFont(StandardFonts.Helvetica))
+        const known = new Set(used.getCharacterSet())
+        const figure = [...(s.name ?? dimensionFigure(s.a, s.b))].filter((ch) => known.has(ch.codePointAt(0) ?? -1)).join('')
+        // The figure is centred on its point: it starts half its width back along its own direction.
+        const half = used.widthOfTextAtSize(figure, DIMENSION_SIZE) / 2
+        const from = toPdf({ x: figureAt.x - Math.cos(angle) * half, y: figureAt.y - Math.sin(angle) * half })
+        // Pages are y-up: the same turn has the opposite sign there.
+        if (figure) {
+          page.drawText(figure, { x: from.x, y: from.y, size: DIMENSION_SIZE, font: used, color: style.color, opacity: style.opacity, rotate: degrees((-angle * 180) / Math.PI) })
+        }
+      } else if (isGeometry(s) && s.kind !== 'point' && s.name) {
+        // Names of lines and curves, placed as on screen.
+        await write(s.name, nameAt(nameAnchor(s), s.name), NAME_SIZE)
+      }
     }
   }
 
+  // The export is a document of its own: with the original's identity it would be taken for it when opened here.
+  await stamp(out)
   const bytes = await out.save()
   downloadBlob(new Blob([bytes as BlobPart], { type: 'application/pdf' }), `${baseName(session.name)} - lámina.pdf`)
 }

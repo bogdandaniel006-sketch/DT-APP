@@ -11,12 +11,13 @@ import { distance } from '../geometry/primitives'
 import { MAX_TEXT_LENGTH } from '../geometry/text'
 import { MAX_NAME_LENGTH, normalizePointName } from '../utils/pointNames'
 import { formatCoordinate, formatLength } from '../utils/format'
+import { dimensionFigure } from '../canvas/dimension'
 import { PENCIL_COLORS } from '../canvas/style'
 import { Popover } from './ui/Popover'
 import { Segmented } from './ui/Segmented'
 import { Tooltip } from './ui/Tooltip'
 
-const PENCIL_TOOLS: readonly ToolId[] = ['point', 'text', 'line', 'perpendicular', 'parallel', 'bisector', 'compass', 'arc', 'escuadra', 'cartabon']
+const PENCIL_TOOLS: readonly ToolId[] = ['point', 'text', 'dimension', 'line', 'perpendicular', 'parallel', 'bisector', 'compass', 'arc', 'escuadra', 'cartabon']
 
 const WIDTHS = [
   { value: 0.25, label: '0,25' },
@@ -176,7 +177,7 @@ const CompassOptions = ({ tool }: { tool: 'compass' | 'arc' }) => {
  * Name of the selected point, line or circle, or the words of a selected text. Edits commit on
  * Enter or when leaving the field (one undo step). A name can be emptied to remove it; a text cannot.
  */
-const NameField = ({ id, name, writing }: { id: string; name: string; writing: boolean }) => {
+const NameField = ({ id, name, writing, label = 'Nombre', placeholder }: { id: string; name: string; writing: boolean; label?: string; placeholder?: string }) => {
   const [value, setValue] = useState(name)
   useEffect(() => setValue(name), [name, id])
   const commit = () => {
@@ -186,7 +187,7 @@ const NameField = ({ id, name, writing }: { id: string; name: string; writing: b
   }
   return (
     <label className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-faint">
-      {writing ? 'Texto' : 'Nombre'}
+      {writing ? 'Texto' : label}
       <input
         value={value}
         maxLength={writing ? MAX_TEXT_LENGTH : MAX_NAME_LENGTH}
@@ -201,7 +202,8 @@ const NameField = ({ id, name, writing }: { id: string; name: string; writing: b
           }
         }}
         spellCheck={false}
-        aria-label={writing ? 'Texto' : 'Nombre'}
+        aria-label={writing ? 'Texto' : label}
+        placeholder={placeholder}
         data-testid="point-name-input"
         className={`h-7 rounded-md bg-black/[0.04] px-2 text-[13px] normal-case tracking-normal text-ink outline-none focus:bg-accent-soft focus:text-accent ${
           writing ? 'w-52 font-normal' : 'w-14 text-center font-semibold'
@@ -241,8 +243,15 @@ const SelectionInfo = ({ ids }: { ids: readonly string[] }) => {
   }
   return (
     <>
-      <span className="text-[12.5px] font-medium text-ink">{single ? (writing ? 'Texto' : shapeName(first)) : `${selected.length} elementos`}</span>
-      {single && isGeometry(first) && <NameField id={first.id} name={first.name ?? ''} writing={writing} />}
+      <span className="text-[12.5px] font-medium text-ink">{single ? (writing ? 'Texto' : first.kind === 'segment' && first.dimension ? 'Cota' : shapeName(first)) : `${selected.length} elementos`}</span>
+      {single && isGeometry(first) && (
+        <NameField
+          id={first.id}
+          name={first.name ?? ''}
+          writing={writing}
+          {...(first.kind === 'segment' && first.dimension && { label: 'Cifra', placeholder: dimensionFigure(first.a, first.b) })}
+        />
+      )}
       {info.length > 0 && <Info>{info.join(' · ')}</Info>}
       {geometry.length > 0 && (
         <>

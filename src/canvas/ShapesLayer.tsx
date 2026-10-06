@@ -2,6 +2,7 @@ import { memo } from 'react'
 import { MIN_TEXT_PX, TEXT_SIZE } from '../geometry/text'
 import { mmToPt } from '../geometry/units'
 import type { Geometry, GeometryShape, Vec } from '../types'
+import { ARROW_LENGTH, DIMENSION_SIZE, MIN_DIMENSION_PX, dimensionFigure, dimensionParts } from './dimension'
 import { geometryPath } from './paths'
 import { MIN_NAME_PX, NAME_SIZE, nameAnchor, nameReach, placeName } from './pointLabel'
 import { ACCENT, LAYER_OPACITY, pencilStroke } from './style'
@@ -9,6 +10,8 @@ import { ACCENT, LAYER_OPACITY, pencilStroke } from './style'
 /** Strokes never get thinner than this on screen, so zoomed-out drawings stay legible. */
 const MIN_SCREEN_WIDTH = 0.75
 const POINT_RADIUS = mmToPt(0.5)
+/** Arrowheads of dimensions never get shorter than this on screen. */
+const MIN_ARROW_PX = 9
 
 interface Props {
   shapes: readonly GeometryShape[]
@@ -65,6 +68,33 @@ export const ShapesLayer = memo(({ shapes, strokesNear, selection, scale }: Prop
                 {s.name}
               </Letters>
             )}
+          </g>
+        )
+      }
+      if (s.kind === 'segment' && s.dimension) {
+        // A dimension: arrowheads at both ends and its figure written along the line, above it.
+        const figureSize = Math.max(DIMENSION_SIZE, MIN_DIMENSION_PX / scale)
+        const { arrows, figureAt, angle } = dimensionParts(s.a, s.b, figureSize, Math.max(ARROW_LENGTH, MIN_ARROW_PX / scale))
+        return (
+          <g key={s.id} opacity={opacity}>
+            <path d={geometryPath(s)} stroke={stroke} strokeWidth={Math.max(width, MIN_SCREEN_WIDTH / scale)} strokeDasharray={dash?.join(' ')} />
+            {arrows.map(([tip, left, right], i) => (
+              <path key={i} d={`M${tip.x} ${tip.y}L${left.x} ${left.y}L${right.x} ${right.y}Z`} fill={stroke} />
+            ))}
+            <text
+              x={figureAt.x}
+              y={figureAt.y}
+              fontSize={figureSize}
+              textAnchor="middle"
+              transform={`rotate(${(angle * 180) / Math.PI} ${figureAt.x} ${figureAt.y})`}
+              fill={stroke}
+              stroke="white"
+              strokeWidth={figureSize * 0.18}
+              paintOrder="stroke"
+              className="point-name"
+            >
+              {s.name ?? dimensionFigure(s.a, s.b)}
+            </text>
           </g>
         )
       }

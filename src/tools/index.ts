@@ -1,5 +1,6 @@
 import type { ToolId } from '../types'
 import { createCompassTool } from './compassTool'
+import { createDimensionTool } from './dimensionTool'
 import { createBisectorTool, createParallelTool, createPerpendicularTool } from './constructionTools'
 import { createEraserTool } from './eraserTool'
 import { createInstrumentTool } from './instrumentTool'
@@ -23,6 +24,7 @@ export const createTools = (): Record<ToolId, Tool> => ({
   cartabon: createInstrumentTool('cartabon'),
   'measure-distance': createMeasureTool('distance'),
   'measure-angle': createMeasureTool('angle'),
+  dimension: createDimensionTool(),
   text: createTextTool(),
   eraser: createEraserTool(),
 })

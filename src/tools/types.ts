@@ -59,7 +59,7 @@ export interface ToolApi {
   /** Next automatic point name on the page under p: A, B, C… */
   nextPointName(p: Vec): string
   /** Adds geometry with the current pencil, layer and page. Returns the new ids. */
-  create(items: readonly (Drawable & { name?: string })[]): string[]
+  create(items: readonly (Drawable & { name?: string; dimension?: boolean })[]): string[]
 }
 
 export interface Tool {

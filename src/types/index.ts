@@ -47,6 +47,8 @@ export type Shape = Drawable & {
   name?: string
   /** A point that is a piece of writing: no dot, and its name is the text. */
   text?: boolean
+  /** A segment that is a dimension line: arrowheads and its figure (the name, or else the length). */
+  dimension?: boolean
 }
 
 export type GeometryShape = Shape & Geometry
@@ -73,6 +75,7 @@ export type ToolId =
   | 'cartabon'
   | 'measure-distance'
   | 'measure-angle'
+  | 'dimension'
   | 'text'
   | 'eraser'
 

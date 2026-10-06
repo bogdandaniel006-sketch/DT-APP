@@ -24,7 +24,7 @@ const MAX_IMAGE_SIDE = 3600
  * Gives the document an identifier of its own. Without one, two documents that start
  * alike (two blank sheets) would be taken for the same file and share their drawing.
  */
-const stamp = async (doc: PDFDocument) => {
+export const stamp = async (doc: PDFDocument) => {
   const { PDFHexString } = await import('pdf-lib')
   const random = crypto.getRandomValues(new Uint8Array(16))
   const id = PDFHexString.of([...random].map((b) => b.toString(16).padStart(2, '0')).join(''))

@@ -29,7 +29,7 @@ import { ShapesLayer } from './ShapesLayer'
 const HIT_PX = 7
 const INSTRUMENTS: InstrumentKind[] = ['escuadra', 'cartabon']
 /** Tools that place points precisely: the loupe follows the cursor with them. */
-const PRECISION_TOOLS = new Set(['select', 'point', 'line', 'perpendicular', 'parallel', 'bisector', 'compass', 'arc', 'measure-distance', 'measure-angle'])
+const PRECISION_TOOLS = new Set(['select', 'point', 'line', 'perpendicular', 'parallel', 'bisector', 'compass', 'arc', 'dimension', 'measure-distance', 'measure-angle'])
 
 export const Workspace = ({ spaceDown }: { spaceDown: boolean }) => {
   const container = useRef<HTMLDivElement>(null)
@@ -63,8 +63,8 @@ export const Workspace = ({ spaceDown }: { spaceDown: boolean }) => {
     [allShapes, hiddenLayers, pageRects, measuresVisible],
   )
   const geometryShapes = useMemo(() => shapes.filter(isGeometry), [shapes])
-  /** What tools may snap to: the geometry, never written text. */
-  const snapShapes = useMemo(() => geometryShapes.filter((s) => !isText(s)), [geometryShapes])
+  /** What tools may snap to: the geometry, never written text nor dimension lines. */
+  const snapShapes = useMemo(() => geometryShapes.filter((s) => !isText(s) && !s.dimension), [geometryShapes])
   const selection = useMemo(() => new Set(selectionIds), [selectionIds])
   /** Strokes around a point, drawn or of the PDF: the names of points keep clear of them. */
   const strokesNear = useCallback(
