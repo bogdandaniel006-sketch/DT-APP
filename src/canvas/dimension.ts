@@ -9,9 +9,9 @@ import type { Vec } from '../types'
  */
 
 /** Height of the figure, as on paper. */
-export const DIMENSION_SIZE = mmToPt(3)
+export const DIMENSION_SIZE = mmToPt(2.2)
 /** On screen the figure never gets smaller than this. */
-export const MIN_DIMENSION_PX = 10
+export const MIN_DIMENSION_PX = 8
 /** Length of an arrowhead, as on paper; it is a narrow filled triangle. */
 export const ARROW_LENGTH = mmToPt(3)
 /** Half the width of an arrowhead, as a fraction of its length (about 15° in all). */
