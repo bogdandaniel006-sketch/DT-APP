@@ -2,7 +2,7 @@ import { memo } from 'react'
 import { MIN_TEXT_PX, TEXT_SIZE } from '../geometry/text'
 import { mmToPt } from '../geometry/units'
 import type { Geometry, GeometryShape, Vec } from '../types'
-import { ARROW_LENGTH, DIMENSION_SIZE, MIN_DIMENSION_PX, dimensionFigure, dimensionParts } from './dimension'
+import { ARROW_LENGTH, DIMENSION_SIZE, dimensionFigure, dimensionParts } from './dimension'
 import { geometryPath } from './paths'
 import { MIN_NAME_PX, NAME_SIZE, nameAnchor, nameReach, placeName } from './pointLabel'
 import { ACCENT, LAYER_OPACITY, pencilStroke } from './style'
@@ -73,7 +73,7 @@ export const ShapesLayer = memo(({ shapes, strokesNear, selection, scale }: Prop
       }
       if (s.kind === 'segment' && s.dimension) {
         // A dimension: arrowheads at both ends and its figure written along the line, above it.
-        const figureSize = Math.max(DIMENSION_SIZE, MIN_DIMENSION_PX / scale)
+        const figureSize = DIMENSION_SIZE
         const { arrows, figureAt, angle } = dimensionParts(s.a, s.b, figureSize, Math.max(ARROW_LENGTH, MIN_ARROW_PX / scale))
         return (
           <g key={s.id} opacity={opacity}>

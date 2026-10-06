@@ -8,10 +8,8 @@ import type { Vec } from '../types'
  * The figure is the measured length unless the segment carries a name, which then replaces it.
  */
 
-/** Height of the figure, as on paper. */
-export const DIMENSION_SIZE = mmToPt(2.2)
-/** On screen the figure never gets smaller than this. */
-export const MIN_DIMENSION_PX = 8
+/** Height of the figure, as on paper. It is the same for every dimension and at every zoom: it grows and shrinks with the drawing. */
+export const DIMENSION_SIZE = mmToPt(1.8)
 /** Length of an arrowhead, as on paper; it is a narrow filled triangle. */
 export const ARROW_LENGTH = mmToPt(3)
 /** Half the width of an arrowhead, as a fraction of its length (about 15° in all). */
