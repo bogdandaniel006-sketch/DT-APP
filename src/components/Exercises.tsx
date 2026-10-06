@@ -310,7 +310,7 @@ const ExercisesPanel = ({ onClose }: { onClose: () => void }) => {
                     </span>
                     {others && (
                       <span className="mt-1 block truncate text-[12px] font-medium text-accent">
-                        {t.source ? t.source.site : `${sitesOf(t).length} webs`}
+                        {t.source ? t.source.site : sitesOf(t).length === 1 ? sitesOf(t)[0] : `${sitesOf(t).length} webs`}
                       </span>
                     )}
                     <span className="mt-1 block text-[12px] tabular-nums text-muted">{count(t)} fichas</span>
