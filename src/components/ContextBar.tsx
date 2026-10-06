@@ -6,8 +6,9 @@ import { useStore } from '../state/createStore'
 import { documentActions, documentStore } from '../state/documentStore'
 import { shortcutLabel, shortcutStore } from '../state/shortcuts'
 import { toolTick, tools } from '../tools/registry'
-import { isGeometry, type Pencil, type PencilHardness, type PencilWidth, type ToolId } from '../types'
+import { isGeometry, isText, type Pencil, type PencilHardness, type PencilWidth, type ToolId } from '../types'
 import { distance } from '../geometry/primitives'
+import { MAX_TEXT_LENGTH } from '../geometry/text'
 import { MAX_NAME_LENGTH, normalizePointName } from '../utils/pointNames'
 import { formatCoordinate, formatLength } from '../utils/format'
 import { PENCIL_COLORS } from '../canvas/style'
@@ -15,7 +16,7 @@ import { Popover } from './ui/Popover'
 import { Segmented } from './ui/Segmented'
 import { Tooltip } from './ui/Tooltip'
 
-const PENCIL_TOOLS: readonly ToolId[] = ['point', 'line', 'perpendicular', 'parallel', 'bisector', 'compass', 'arc', 'escuadra', 'cartabon']
+const PENCIL_TOOLS: readonly ToolId[] = ['point', 'text', 'line', 'perpendicular', 'parallel', 'bisector', 'compass', 'arc', 'escuadra', 'cartabon']
 
 const WIDTHS = [
   { value: 0.25, label: '0,25' },
@@ -171,21 +172,24 @@ const CompassOptions = ({ tool }: { tool: 'compass' | 'arc' }) => {
   )
 }
 
-/** Name field of a selected point: edits commit on Enter or when leaving the field (one undo step). */
-const PointNameField = ({ id, name }: { id: string; name: string }) => {
+/**
+ * Name of the selected point, line or circle, or the words of a selected text. Edits commit on
+ * Enter or when leaving the field (one undo step). A name can be emptied to remove it; a text cannot.
+ */
+const NameField = ({ id, name, writing }: { id: string; name: string; writing: boolean }) => {
   const [value, setValue] = useState(name)
   useEffect(() => setValue(name), [name, id])
   const commit = () => {
-    const next = normalizePointName(value)
-    if (next && next !== name) documentActions.update([id], (s) => ({ ...s, name: next }))
-    else setValue(name)
+    const next = writing ? value.trim().slice(0, MAX_TEXT_LENGTH) : normalizePointName(value)
+    if (next === name || (writing && !next)) return setValue(name)
+    documentActions.update([id], (s) => ({ ...s, name: next || undefined }))
   }
   return (
     <label className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-faint">
-      Nombre
+      {writing ? 'Texto' : 'Nombre'}
       <input
         value={value}
-        maxLength={MAX_NAME_LENGTH}
+        maxLength={writing ? MAX_TEXT_LENGTH : MAX_NAME_LENGTH}
         onChange={(e) => setValue(e.target.value)}
         onBlur={commit}
         onKeyDown={(e) => {
@@ -197,9 +201,11 @@ const PointNameField = ({ id, name }: { id: string; name: string }) => {
           }
         }}
         spellCheck={false}
-        aria-label="Nombre del punto"
+        aria-label={writing ? 'Texto' : 'Nombre'}
         data-testid="point-name-input"
-        className="h-7 w-14 rounded-md bg-black/[0.04] px-2 text-center text-[13px] font-semibold normal-case tracking-normal text-ink outline-none focus:bg-accent-soft focus:text-accent"
+        className={`h-7 rounded-md bg-black/[0.04] px-2 text-[13px] normal-case tracking-normal text-ink outline-none focus:bg-accent-soft focus:text-accent ${
+          writing ? 'w-52 font-normal' : 'w-14 text-center font-semibold'
+        }`}
       />
     </label>
   )
@@ -227,15 +233,16 @@ const SelectionInfo = ({ ids }: { ids: readonly string[] }) => {
   )
   // Contextual facts, read from the exact document coordinates.
   let info: string[] = single ? measurements(first) : []
-  if (single && first.kind === 'point') info = [`X ${formatCoordinate(first.p.x)} mm`, `Y ${formatCoordinate(first.p.y)} mm`]
+  const writing = isText(first)
+  if (single && first.kind === 'point') info = writing ? [] : [`X ${formatCoordinate(first.p.x)} mm`, `Y ${formatCoordinate(first.p.y)} mm`]
   if (single && (first.kind === 'circle' || first.kind === 'arc')) {
     const centre = shapes.find((s) => s.kind === 'point' && s.page === first.page && s.name && distance(s.p, first.c) < 1e-6)
     if (centre?.name) info = [`Centro ${centre.name}`, ...info]
   }
   return (
     <>
-      <span className="text-[12.5px] font-medium text-ink">{single ? shapeName(first) : `${selected.length} elementos`}</span>
-      {single && first.kind === 'point' && <PointNameField id={first.id} name={first.name ?? ''} />}
+      <span className="text-[12.5px] font-medium text-ink">{single ? (writing ? 'Texto' : shapeName(first)) : `${selected.length} elementos`}</span>
+      {single && isGeometry(first) && <NameField id={first.id} name={first.name ?? ''} writing={writing} />}
       {info.length > 0 && <Info>{info.join(' · ')}</Info>}
       {geometry.length > 0 && (
         <>

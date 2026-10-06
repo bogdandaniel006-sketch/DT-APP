@@ -13,6 +13,7 @@ export const SHORTCUT_ACTIONS = [
   { id: 'escuadra', label: 'Escuadra', key: 'e' },
   { id: 'cartabon', label: 'Cartabón', key: 't' },
   { id: 'measure-distance', label: 'Medir distancia y ángulo', key: 'm' },
+  { id: 'text', label: 'Texto', key: 'x' },
   { id: 'flip', label: 'Voltear la escuadra o el cartabón', key: 'f' },
   { id: 'loupe', label: 'Lupa de precisión', key: 'z' },
   { id: 'layer-construccion', label: 'Capa Construcción', key: '1' },

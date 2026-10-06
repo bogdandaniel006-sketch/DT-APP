@@ -19,7 +19,7 @@ export const createPointTool = (): Tool => {
   let snap: SnapResult | null = null
 
   const existingAt = (p: Vec, api: ToolApi) => {
-    const hit = api.hit(p, (s) => s.kind === 'point')
+    const hit = api.hit(p, (s) => s.kind === 'point' && !s.text)
     return hit?.kind === 'point' && distance(hit.p, p) <= api.px(SAME_POINT_PX) ? hit : null
   }
 

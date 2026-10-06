@@ -2,6 +2,7 @@ import type { Drawable, Geometry, Measure, Shape, Vec } from '../types'
 import { formatAngle, formatPrecise } from '../utils/format'
 import { horizontalAngle, vertexAngle } from './angles'
 import { arcEndPoint, arcStartPoint, distanceToGeometry, midpoint, distance, segment } from './primitives'
+import { distanceToText } from './text'
 import { add } from './vec'
 
 export type KeyPointKind = 'endpoint' | 'midpoint' | 'center' | 'point'
@@ -81,7 +82,8 @@ export const hitTest = (shapes: readonly Shape[], p: Vec, tol: number, filter?: 
   for (let i = shapes.length - 1; i >= 0; i--) {
     const s = shapes[i]!
     if (filter && !filter(s)) continue
-    const d = distanceToDrawable(s, p)
+    // A text is picked by its letters, not only by the point it hangs from.
+    const d = s.kind === 'point' && s.text ? distanceToText(p, s.p, s.name ?? '') : distanceToDrawable(s, p)
     if (d > tol) continue
     // Points are tiny; give them priority over strokes passing nearby.
     const score = s.kind === 'point' ? d - tol : d

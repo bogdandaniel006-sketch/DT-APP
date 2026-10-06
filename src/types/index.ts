@@ -43,8 +43,10 @@ export type Shape = Drawable & {
   page: number
   layer: LayerId
   pencil: Pencil
-  /** Name of a point (A, B, O', P1…). */
+  /** Name of a point, a line or a circle (A, O', r, c1…); for a text, what is written. */
   name?: string
+  /** A point that is a piece of writing: no dot, and its name is the text. */
+  text?: boolean
 }
 
 export type GeometryShape = Shape & Geometry
@@ -52,6 +54,8 @@ export type MeasureShape = Shape & Measure
 
 export const isMeasure = (s: Shape): s is MeasureShape => s.kind === 'distance' || s.kind === 'angle'
 export const isGeometry = (s: Shape): s is GeometryShape => !isMeasure(s)
+/** Written text: drawn and exported, but never something to snap to or build on. */
+export const isText = (s: Shape): boolean => s.kind === 'point' && s.text === true
 
 /** How strongly the cursor is pulled towards geometry. */
 export type SnapMode = 'preciso' | 'normal' | 'libre'
@@ -69,6 +73,7 @@ export type ToolId =
   | 'cartabon'
   | 'measure-distance'
   | 'measure-angle'
+  | 'text'
   | 'eraser'
 
 export type InstrumentKind = 'escuadra' | 'cartabon'

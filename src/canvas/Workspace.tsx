@@ -13,7 +13,7 @@ import { documentActions, documentStore } from '../state/documentStore'
 import { instrumentHandles } from '../tools/instrumentTool'
 import { bumpTools, toolTick, tools } from '../tools/registry'
 import type { ToolApi, ToolPointer } from '../tools/types'
-import { isGeometry, isMeasure, type Geometry, type InstrumentKind, type Shape, type Vec } from '../types'
+import { isGeometry, isMeasure, isText, type Geometry, type InstrumentKind, type Shape, type Vec } from '../types'
 import { newId } from '../utils/id'
 import { localPoint } from '../utils/localPoint'
 import { nextPointName } from '../utils/pointNames'
@@ -63,6 +63,8 @@ export const Workspace = ({ spaceDown }: { spaceDown: boolean }) => {
     [allShapes, hiddenLayers, pageRects, measuresVisible],
   )
   const geometryShapes = useMemo(() => shapes.filter(isGeometry), [shapes])
+  /** What tools may snap to: the geometry, never written text. */
+  const snapShapes = useMemo(() => geometryShapes.filter((s) => !isText(s)), [geometryShapes])
   const selection = useMemo(() => new Set(selectionIds), [selectionIds])
   /** Strokes around a point, drawn or of the PDF: the names of points keep clear of them. */
   const strokesNear = useCallback(
@@ -104,14 +106,14 @@ export const Workspace = ({ spaceDown }: { spaceDown: boolean }) => {
       px,
       snap(p, exclude, withInstruments = true) {
         const radius = px(SNAP_RADIUS_PX[snapMode])
-        const geoms = exclude ? geometryShapes.filter((s) => !exclude.has(s.id)) : geometryShapes
+        const geoms = exclude ? snapShapes.filter((s) => !exclude.has(s.id)) : snapShapes
         return snapPoint(p, { geoms, edges: withInstruments ? edges : [], pdf: pdfNear(p, radius) }, radius, snapMode)
       },
       snapAlong(p, origin, dir, exclude) {
         const radius = px(SNAP_RADIUS_PX[snapMode])
         const unit = normalize(dir)
         const on = add(origin, scale(unit, dot(sub(p, origin), unit)))
-        const geoms = exclude ? geometryShapes.filter((s) => !exclude.has(s.id)) : geometryShapes
+        const geoms = exclude ? snapShapes.filter((s) => !exclude.has(s.id)) : snapShapes
         return snapAlongLine(on, unit, { geoms, edges, pdf: pdfNear(on, radius) }, radius, snapMode)
       },
       hit: (p, filter) => hitTest(shapes, p, px(HIT_PX), filter),
@@ -132,7 +134,7 @@ export const Workspace = ({ spaceDown }: { spaceDown: boolean }) => {
       pageAt: (p) => pageAt(pageRects, p),
       nextPointName(p) {
         const page = pageAt(pageRects, p)
-        return nextPointName(new Set(allShapes.filter((s) => s.page === page && s.name).map((s) => s.name!)))
+        return nextPointName(new Set(allShapes.filter((s) => s.page === page && s.kind === 'point' && !s.text && s.name).map((s) => s.name!)))
       },
       create(items) {
         const { pencil, layer } = appStore.get()
@@ -147,7 +149,7 @@ export const Workspace = ({ spaceDown }: { spaceDown: boolean }) => {
       },
     }
     // `detected` is a dependency so snapping picks up pages as their detection completes.
-  }, [shapes, geometryShapes, edges, view.scale, pageRects, snapMode, allShapes, detected])
+  }, [shapes, geometryShapes, snapShapes, edges, view.scale, pageRects, snapMode, allShapes, detected])
 
   const tool = tools[toolId]
 

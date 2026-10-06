@@ -136,18 +136,13 @@ export const createPerpendicularTool = (): Tool => {
   }
 }
 
-/**
- * Perpendicular bisector of a→b, as long as the segment itself, and its midpoint.
- * Only halves, sums and a swap of components: no trigonometry and no
- * normalisation, so the result is exact to the last bit of the coordinates.
- */
-export const bisectorOf = (a: Vec, b: Vec): { mid: Vec; seg: Segment } => {
-  const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
-  const half = { x: -(b.y - a.y) / 2, y: (b.x - a.x) / 2 }
-  return { mid, seg: segment(sub(mid, half), add(mid, half)) }
-}
+/** Midpoint of a→b: a sum and a half, exact to the last bit of the coordinates. */
+const midpointOf = (a: Vec, b: Vec): Vec => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 })
 
-/** Mediatriz: pick two points; the bisector and the midpoint are drawn at once. */
+/**
+ * Mediatriz: pick two points and their midpoint is marked. Only the point: the bisector
+ * itself is then drawn by hand, as a perpendicular through it.
+ */
 export const createBisectorTool = (): Tool => {
   let first: Vec | null = null
   let cursor: Vec | null = null
@@ -162,8 +157,7 @@ export const createBisectorTool = (): Tool => {
         return
       }
       if (distance(first, p) < api.px(2)) return
-      const { mid, seg } = bisectorOf(first, p)
-      api.create([seg, { kind: 'point', p: mid }])
+      api.create([{ kind: 'point', p: midpointOf(first, p) }])
       first = null
     },
     move(e, api) {
@@ -179,17 +173,15 @@ export const createBisectorTool = (): Tool => {
     overlays(api) {
       const out: Overlay[] = []
       if (first && cursor && distance(first, cursor) >= api.px(2)) {
-        const { mid, seg } = bisectorOf(first, cursor)
-        out.push({ kind: 'guide', a: first, b: cursor }, { kind: 'ghost', geom: seg })
-        out.push(rightAngleAt(mid, segment(first, cursor), seg.b))
-        out.push({ kind: 'marker', p: first }, { kind: 'marker', p: mid })
+        out.push({ kind: 'guide', a: first, b: cursor })
+        out.push({ kind: 'marker', p: first }, { kind: 'marker', p: midpointOf(first, cursor) })
       } else if (first) {
         out.push({ kind: 'marker', p: first })
       }
       return [...out, ...snapOverlay(snap)]
     },
     hint() {
-      return first ? 'Selecciona el segundo punto: se traza la mediatriz y su punto medio' : 'Selecciona el primer punto'
+      return first ? 'Selecciona el segundo punto: se marca el punto medio para trazar la perpendicular' : 'Selecciona el primer punto'
     },
   }
 }

@@ -1,8 +1,9 @@
 import { geometryPath } from '../canvas/paths'
-import { NAME_SIZE, nameReach, placeName } from '../canvas/pointLabel'
+import { NAME_SIZE, nameAnchor, nameReach, placeName } from '../canvas/pointLabel'
 import { LAYER_OPACITY, pencilStroke } from '../canvas/style'
+import { TEXT_SIZE } from '../geometry/text'
 import { mmToPt } from '../geometry/units'
-import { isGeometry, type Shape } from '../types'
+import { isGeometry, type Shape, type Vec } from '../types'
 import { baseName, downloadBlob } from '../utils/download'
 import { detectedNear } from './detect'
 import { getSession } from './session'
@@ -35,20 +36,25 @@ export const exportPng = async (shapes: readonly Shape[], pageIndex: number, inc
     ctx.globalAlpha = LAYER_OPACITY[s.layer]
     ctx.setLineDash(dash ?? [])
     const path = new Path2D(geometryPath(s, mmToPt(0.5)))
-    if (s.kind === 'point') {
-      ctx.fillStyle = color
+    /** Writes a name around its anchor, where it covers the fewest strokes, as on screen. */
+    const writeName = (anchor: Vec, name: string) => {
+      const strokes = [...onPage, ...detectedNear(pageIndex, anchor, nameReach(name, NAME_SIZE)).curves]
+      const at = placeName(anchor, name, NAME_SIZE, strokes)
+      ctx.font = `500 ${NAME_SIZE}px Inter, system-ui, sans-serif`
+      ctx.fillText(name, at.x, at.y)
+    }
+    ctx.fillStyle = color
+    if (s.kind === 'point' && s.text) {
+      ctx.font = `500 ${TEXT_SIZE}px Inter, system-ui, sans-serif`
+      ctx.fillText(s.name ?? '', s.p.x, s.p.y)
+    } else if (s.kind === 'point') {
       ctx.fill(path)
-      if (s.name) {
-        const size = NAME_SIZE
-        const strokes = [...onPage, ...detectedNear(pageIndex, s.p, nameReach(s.name, size)).curves]
-        const at = placeName(s.p, s.name, size, strokes)
-        ctx.font = `500 ${size}px Inter, system-ui, sans-serif`
-        ctx.fillText(s.name, at.x, at.y)
-      }
+      if (s.name) writeName(s.p, s.name)
     } else {
       ctx.strokeStyle = color
       ctx.lineWidth = width
       ctx.stroke(path)
+      if (s.name) writeName(nameAnchor(s), s.name)
     }
   }
 

@@ -1,7 +1,8 @@
 import { LineCapStyle, PDFDocument, StandardFonts, rgb, type PDFFont } from 'pdf-lib'
-import { NAME_SIZE, nameReach, placeName } from '../canvas/pointLabel'
+import { NAME_SIZE, nameAnchor, nameReach, placeName } from '../canvas/pointLabel'
 import { LAYER_OPACITY, pencilStroke } from '../canvas/style'
 import { pointOnCircle } from '../geometry/primitives'
+import { TEXT_SIZE } from '../geometry/text'
 import { mmToPt } from '../geometry/units'
 import { isGeometry, type Shape, type Vec } from '../types'
 import { baseName, downloadBlob } from '../utils/download'
@@ -35,10 +36,23 @@ export const exportPdf = async (shapes: readonly Shape[]) => {
       return { x, y }
     }
 
+    const strokes = onPage.filter(isGeometry)
     for (const s of onPage) {
       const { color, width, dash } = pencilStroke(s.pencil)
       const dashArray = dash ? [...dash] : undefined
       const style = { color: hexToRgb(color), opacity: LAYER_OPACITY[s.layer] }
+      /** Where a name goes around its anchor so that it covers the fewest strokes, as on screen. */
+      const nameAt = (anchor: Vec, name: string) =>
+        placeName(anchor, name, NAME_SIZE, [...strokes, ...detectedNear(index, anchor, nameReach(name, NAME_SIZE)).curves])
+      /** Writes at a point of the page (left end of the baseline), leaving out what the font cannot print. */
+      const write = async (text: string, at: Vec, size: number) => {
+        const used = (font ??= await out.embedFont(StandardFonts.Helvetica))
+        const known = new Set(used.getCharacterSet())
+        const printable = [...text].filter((ch) => known.has(ch.codePointAt(0) ?? -1)).join('')
+        if (!printable) return
+        const o = toPdf(at)
+        page.drawText(printable, { x: o.x, y: o.y, size, font: used, color: style.color, opacity: style.opacity })
+      }
       switch (s.kind) {
         case 'segment':
           page.drawLine({
@@ -57,15 +71,13 @@ export const exportPdf = async (shapes: readonly Shape[]) => {
           break
         }
         case 'point': {
+          if (s.text) {
+            await write(s.name ?? '', s.p, TEXT_SIZE)
+            break
+          }
           const c = toPdf(s.p)
           page.drawCircle({ x: c.x, y: c.y, size: mmToPt(0.5), color: style.color, opacity: style.opacity })
-          if (s.name) {
-            font ??= await out.embedFont(StandardFonts.Helvetica)
-            const size = NAME_SIZE
-            const strokes = [...onPage.filter(isGeometry), ...detectedNear(index, s.p, nameReach(s.name, size)).curves]
-            const at = toPdf(placeName(s.p, s.name, size, strokes))
-            page.drawText(s.name, { x: at.x, y: at.y, size, font, color: style.color, opacity: style.opacity })
-          }
+          if (s.name) await write(s.name, nameAt(s.p, s.name), NAME_SIZE)
           break
         }
         case 'arc': {
@@ -86,6 +98,8 @@ export const exportPdf = async (shapes: readonly Shape[]) => {
           })
         }
       }
+      // Names of lines and curves, placed as on screen.
+      if (isGeometry(s) && s.kind !== 'point' && s.name) await write(s.name, nameAt(nameAnchor(s), s.name), NAME_SIZE)
     }
   }
 

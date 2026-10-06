@@ -49,6 +49,8 @@ export interface NamingRequest {
   p: Vec
   id?: string
   value: string
+  /** Writing a text rather than naming a point. */
+  text?: boolean
 }
 
 const defaultInstrument = (size: number): InstrumentState => ({

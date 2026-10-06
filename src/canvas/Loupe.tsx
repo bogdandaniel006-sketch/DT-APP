@@ -106,6 +106,7 @@ export const Loupe = ({ cursor, view, rects, shapes, snap, viewport }: Props) =>
       ctx.globalAlpha = LAYER_OPACITY[s.layer]
       ctx.setLineDash(dash ?? [])
       const path = new Path2D(geometryPath(s, mmToPt(0.5)))
+      if (s.kind === 'point' && s.text) continue
       if (s.kind === 'point') {
         ctx.fillStyle = color
         ctx.fill(path)

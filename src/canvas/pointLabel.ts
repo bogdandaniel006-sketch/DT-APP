@@ -1,4 +1,4 @@
-import { closestPoint } from '../geometry/primitives'
+import { closestPoint, pointOnCircle } from '../geometry/primitives'
 import { mmToPt } from '../geometry/units'
 import type { Geometry, Vec } from '../types'
 
@@ -78,6 +78,24 @@ const crosses = (g: Geometry, box: Box) => {
     { x: box.maxX, y: cy },
   ]
   return probes.some((p) => inside(closestPoint(g, p), box))
+}
+
+/**
+ * Point of a line or a curve its name hangs from: a little past the middle of a segment
+ * (the middle itself is where constructions tend to meet), the upper right of a circle,
+ * the middle of an arc. The name is then placed around it like the name of a point.
+ */
+export const nameAnchor = (g: Geometry): Vec => {
+  switch (g.kind) {
+    case 'segment':
+      return { x: g.a.x + (g.b.x - g.a.x) * 0.62, y: g.a.y + (g.b.y - g.a.y) * 0.62 }
+    case 'circle':
+      return pointOnCircle(g.c, g.r, -Math.PI / 4)
+    case 'arc':
+      return pointOnCircle(g.c, g.r, g.start + g.sweep / 2)
+    case 'point':
+      return g.p
+  }
 }
 
 /** How far from the point its name can reach: strokes beyond this cannot be covered by it. */

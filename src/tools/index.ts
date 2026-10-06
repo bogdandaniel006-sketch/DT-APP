@@ -7,6 +7,7 @@ import { createLineTool } from './lineTool'
 import { createMeasureTool } from './measureTool'
 import { createPointTool } from './pointTool'
 import { createSelectTool } from './selectTool'
+import { createTextTool } from './textTool'
 import type { Tool } from './types'
 
 export const createTools = (): Record<ToolId, Tool> => ({
@@ -22,6 +23,7 @@ export const createTools = (): Record<ToolId, Tool> => ({
   cartabon: createInstrumentTool('cartabon'),
   'measure-distance': createMeasureTool('distance'),
   'measure-angle': createMeasureTool('angle'),
+  text: createTextTool(),
   eraser: createEraserTool(),
 })
 
