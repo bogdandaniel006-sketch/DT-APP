@@ -2,7 +2,7 @@ import { memo } from 'react'
 import { LINE_HEIGHT, textLines, textSize } from '../geometry/text'
 import { mmToPt } from '../geometry/units'
 import type { Geometry, GeometryShape, Vec } from '../types'
-import { ARROW_LENGTH, DIMENSION_SIZE, dimensionFigure, dimensionParts } from './dimension'
+import { ARROW_LENGTH, DIMENSION_SIZE, DIMENSION_WIDTH, dimensionFigure, dimensionParts } from './dimension'
 import { geometryPath } from './paths'
 import { MIN_NAME_PX, NAME_SIZE, nameAnchor, nameReach, placeName } from './pointLabel'
 import { ACCENT, LAYER_OPACITY, pencilStroke } from './style'
@@ -93,10 +93,15 @@ export const ShapesLayer = memo(({ shapes, strokesNear, selection, editingId, sc
       if (s.kind === 'segment' && s.dimension) {
         // A dimension: arrowheads at both ends and its figure written along the line, above it.
         const figureSize = DIMENSION_SIZE
-        const { arrows, figureAt, angle } = dimensionParts(s.a, s.b, figureSize, Math.max(ARROW_LENGTH, MIN_ARROW_PX / scale))
+        const { arrows, tails, figureAt, angle } = dimensionParts(s.a, s.b, figureSize, Math.max(ARROW_LENGTH, MIN_ARROW_PX / scale))
         return (
           <g key={s.id} opacity={opacity}>
-            <path d={geometryPath(s)} stroke={stroke} strokeWidth={Math.max(width, MIN_SCREEN_WIDTH / scale)} strokeDasharray={dash?.join(' ')} />
+            {/* Always the thin continuous line of the standard, whatever pencil it was drawn with. */}
+            <path
+              d={geometryPath(s) + tails.map(([from, to]) => `M${from.x} ${from.y}L${to.x} ${to.y}`).join("")}
+              stroke={stroke}
+              strokeWidth={Math.max(DIMENSION_WIDTH, MIN_SCREEN_WIDTH / scale)}
+            />
             {arrows.map(([tip, left, right], i) => (
               <path key={i} d={`M${tip.x} ${tip.y}L${left.x} ${left.y}L${right.x} ${right.y}Z`} fill={stroke} />
             ))}

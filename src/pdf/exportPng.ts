@@ -1,4 +1,4 @@
-import { DIMENSION_SIZE, dimensionFigure, dimensionParts } from '../canvas/dimension'
+import { DIMENSION_SIZE, DIMENSION_WIDTH, dimensionFigure, dimensionParts } from '../canvas/dimension'
 import { geometryPath } from '../canvas/paths'
 import { NAME_SIZE, nameAnchor, nameReach, placeName } from '../canvas/pointLabel'
 import { LAYER_OPACITY, pencilStroke } from '../canvas/style'
@@ -53,10 +53,13 @@ export const exportPng = async (shapes: readonly Shape[], pageIndex: number, inc
       ctx.fill(path)
       if (s.name) writeName(s.p, s.name)
     } else if (s.kind === 'segment' && s.dimension) {
+      const { arrows, tails, figureAt, angle } = dimensionParts(s.a, s.b)
+      // Always the thin continuous line of the standard, whatever pencil it was drawn with.
       ctx.strokeStyle = color
-      ctx.lineWidth = width
+      ctx.lineWidth = DIMENSION_WIDTH
+      ctx.setLineDash([])
       ctx.stroke(path)
-      const { arrows, figureAt, angle } = dimensionParts(s.a, s.b)
+      for (const [from, to] of tails) ctx.stroke(new Path2D(`M${from.x} ${from.y}L${to.x} ${to.y}`))
       for (const [tip, left, right] of arrows) ctx.fill(new Path2D(`M${tip.x} ${tip.y}L${left.x} ${left.y}L${right.x} ${right.y}Z`))
       ctx.save()
       ctx.translate(figureAt.x, figureAt.y)

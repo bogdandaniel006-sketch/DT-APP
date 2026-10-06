@@ -1,5 +1,5 @@
 import { LineCapStyle, PDFDocument, StandardFonts, degrees, rgb, type PDFFont } from 'pdf-lib'
-import { DIMENSION_SIZE, dimensionFigure, dimensionParts } from '../canvas/dimension'
+import { DIMENSION_SIZE, DIMENSION_WIDTH, dimensionFigure, dimensionParts } from '../canvas/dimension'
 import { NAME_SIZE, nameAnchor, nameReach, placeName } from '../canvas/pointLabel'
 import { LAYER_OPACITY, pencilStroke } from '../canvas/style'
 import { pointOnCircle } from '../geometry/primitives'
@@ -60,11 +60,12 @@ export const exportPdf = async (shapes: readonly Shape[]) => {
           page.drawLine({
             start: toPdf(s.a),
             end: toPdf(s.b),
-            thickness: width,
+            // A dimension is always the thin continuous line of the standard.
+            thickness: s.dimension ? DIMENSION_WIDTH : width,
             color: style.color,
             opacity: style.opacity,
             lineCap: LineCapStyle.Round,
-            dashArray,
+            dashArray: s.dimension ? undefined : dashArray,
           })
           break
         case 'circle': {
@@ -104,7 +105,10 @@ export const exportPdf = async (shapes: readonly Shape[]) => {
       }
       if (s.kind === 'segment' && s.dimension) {
         // A dimension: its arrowheads, and its figure written along the line.
-        const { arrows, figureAt, angle } = dimensionParts(s.a, s.b)
+        const { arrows, tails, figureAt, angle } = dimensionParts(s.a, s.b)
+        for (const [from, to] of tails) {
+          page.drawLine({ start: toPdf(from), end: toPdf(to), thickness: DIMENSION_WIDTH, color: style.color, opacity: style.opacity, lineCap: LineCapStyle.Round })
+        }
         for (const corners of arrows) {
           const [tip, left, right] = corners.map(toPdf) as [Vec, Vec, Vec]
           // drawSvgPath flips y around the origin, so feed it -y.
