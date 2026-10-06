@@ -6,6 +6,7 @@
  *
  *   /ejercicios/doc/…  /ejercicios/pau/…   the main library (dtecnico.com)
  *   /ejercicios/<id>/…                     the other sites of src/data/exercises.ts
+ *   POST /abrir                            a project opened from its web file (see openProject)
  */
 const MAIN = 'http://dtecnico.com/'
 const MAIN_SHEET = /^(?:doc|pau)\/[a-z0-9-]+\.pdf$/
@@ -51,9 +52,31 @@ const originalOf = (path) => {
   return OTHERS[id] + file
 }
 
+/**
+ * A project saved as a web file sends itself here when it is opened from the file explorer.
+ * The answer is the app with the project inside the page, for the app to pick up as it starts.
+ * Only base64 text is let through, so nothing sent can become markup.
+ */
+const openProject = async (request, env) => {
+  const home = new URL('/', request.url)
+  let data = ''
+  try {
+    data = String((await request.formData()).get('data') ?? '').replace(/\s+/g, '')
+  } catch {
+    /* not a form: nothing to open */
+  }
+  if (!data || !/^[A-Za-z0-9+/=]+$/.test(data)) return Response.redirect(home.href, 303)
+  const page = await (await env.ASSETS.fetch(new Request(home))).text()
+  const handed = `<script id="lamina-open" type="application/octet-stream">${data}</script>`
+  return new Response(page.replace('</head>', () => handed + '</head>'), {
+    headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' },
+  })
+}
+
 export default {
   async fetch(request, env) {
     const { pathname } = new URL(request.url)
+    if (request.method === 'POST' && pathname === '/abrir') return openProject(request, env)
     const original = request.method === 'GET' && pathname.startsWith('/ejercicios/') ? originalOf(pathname.slice(12)) : null
     if (!original) return env.ASSETS.fetch(request)
 

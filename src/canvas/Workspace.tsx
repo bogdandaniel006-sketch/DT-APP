@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as
 import { screenToDesk } from '../geometry/coords'
 import { instrumentEdges } from '../geometry/instruments'
 import { pageAt, pageOffset } from '../geometry/layout'
-import { distanceToSegment, type Segment } from '../geometry/primitives'
+import { distanceToGeometry, distanceToSegment, type Segment } from '../geometry/primitives'
 import { anchorOf, hitTest, translateGeometry } from '../geometry/shapes'
 import { SNAP_RADIUS_PX, snapAlongLine, snap as snapPoint, type SnapPoint } from '../geometry/snapping'
 import { add, dot, normalize, scale, sub } from '../geometry/vec'
@@ -64,6 +64,18 @@ export const Workspace = ({ spaceDown }: { spaceDown: boolean }) => {
   )
   const geometryShapes = useMemo(() => shapes.filter(isGeometry), [shapes])
   const selection = useMemo(() => new Set(selectionIds), [selectionIds])
+  /** Strokes around a point, drawn or of the PDF: the names of points keep clear of them. */
+  const strokesNear = useCallback(
+    (p: Vec, r: number): Geometry[] => {
+      const page = pageAt(pageRects, p)
+      const o = pageOffset(pageRects, page)
+      const pdf = detectedNear(page, sub(p, o), r).curves.map((g): Geometry => translateGeometry(g, o))
+      const own = geometryShapes.filter((s) => s.kind !== 'point' && distanceToGeometry(s, p) <= r)
+      return [...own, ...pdf]
+    },
+    // `detected` is a dependency so names settle again as the detection of a page completes.
+    [geometryShapes, pageRects, detected],
+  )
   const edges = useMemo(
     () => INSTRUMENTS.filter((k) => instruments[k].visible).flatMap((k) => instrumentEdges(k, instruments[k])),
     [instruments],
@@ -258,7 +270,7 @@ export const Workspace = ({ spaceDown }: { spaceDown: boolean }) => {
       <PdfPages rects={pageRects} fingerprint={fingerprint} view={view} visible={pdfVisible} />
       <svg className="pointer-events-none absolute inset-0 h-full w-full overflow-visible">
         <g transform={`translate(${view.x} ${view.y}) scale(${view.scale})`}>
-          <ShapesLayer shapes={geometryShapes} selection={selection} scale={view.scale} />
+          <ShapesLayer shapes={geometryShapes} strokesNear={strokesNear} selection={selection} scale={view.scale} />
           {INSTRUMENTS.map((k) => (
             <InstrumentBody key={k} kind={k} state={instruments[k]} scale={view.scale} active={toolId === k} />
           ))}

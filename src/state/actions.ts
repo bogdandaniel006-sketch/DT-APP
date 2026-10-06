@@ -7,7 +7,15 @@ import { cancelAllTools } from '../tools/registry'
 import type { Shape } from '../types'
 import { baseName, downloadBlob } from '../utils/download'
 import { newId } from '../utils/id'
-import { decodeProject, encodeProject, isProject, PROJECT_EXTENSION } from '../utils/project'
+import {
+  decodeProject,
+  encodeProjectPage,
+  fromBase64,
+  HANDED_PROJECT_ID,
+  isProject,
+  projectFromPage,
+  WEB_PROJECT_EXTENSION,
+} from '../utils/project'
 import {
   deleteDrawing,
   deleteTabFile,
@@ -75,7 +83,7 @@ export const loadPdf = async (bytes: Uint8Array, name: string, options: { drawin
     if (!tab) {
       tab = { id: newId(), name, fingerprint: session.fingerprint, ...(options.own && { own: true }) }
       appStore.set({ tabs: [...tabs, tab] })
-      void saveTabFile(tab.id, { name, bytes })
+      await saveTabFile(tab.id, { name, bytes })
     }
     await show(tab, options.drawing)
   } catch (err) {
@@ -93,7 +101,9 @@ const isImage = (file: File) => file.type.startsWith('image/') || /\.(png|jpe?g|
 
 /** Opens whatever the user hands over: a PDF, a project (.lamina) or a picture. */
 export const loadPdfFile = async (file: File) => {
-  const bytes = new Uint8Array(await file.arrayBuffer())
+  const given = new Uint8Array(await file.arrayBuffer())
+  // A project saved as a web file carries the same project inside.
+  const bytes = projectFromPage(given) ?? given
   if (isProject(bytes)) {
     const project = decodeProject(bytes)
     if (!project) {
@@ -235,12 +245,34 @@ export const loadPdfFromUrl = async (url: string, name: string): Promise<boolean
   }
 }
 
-/** Downloads the open PDF and its editable drawing as one project file. */
-export const saveProject = () => {
+/**
+ * Downloads the open PDF and its editable drawing as one project file. It is a web file:
+ * a double click on it opens the browser, and the page inside brings the project to this site.
+ */
+export const saveProject = async () => {
   const session = getSession()
   if (!session) return
   const project = { name: session.name, bytes: session.bytes, shapes: [...documentStore.get().shapes], page: appStore.get().page }
-  downloadBlob(encodeProject(project), baseName(session.name) + PROJECT_EXTENSION)
+  downloadBlob(await encodeProjectPage(project, location.origin), baseName(session.name) + WEB_PROJECT_EXTENSION)
+}
+
+/**
+ * Opens the project the site handed over with the page (a web project file was opened from the
+ * file explorer). Once it is safely in its tab, the address is cleaned so a reload does not send it again.
+ */
+export const openHandedProject = async () => {
+  const handed = document.getElementById(HANDED_PROJECT_ID)?.textContent
+  if (!handed) return
+  try {
+    await loadPdfFile(new File([fromBase64(handed) as BlobPart], 'proyecto.lamina'))
+  } catch (err) {
+    console.error(err)
+    appStore.set({ error: 'No se ha podido abrir el proyecto.' })
+    return
+  }
+  if (appStore.get().phase !== 'ready') return
+  flushAutosave()
+  location.replace('/')
 }
 
 /** On start-up, reopen the documents that were open, so accidental closes lose nothing. */

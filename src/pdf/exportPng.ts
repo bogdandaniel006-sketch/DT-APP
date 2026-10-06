@@ -1,8 +1,10 @@
 import { geometryPath } from '../canvas/paths'
+import { NAME_SIZE, nameReach, placeName } from '../canvas/pointLabel'
 import { LAYER_OPACITY, pencilStroke } from '../canvas/style'
 import { mmToPt } from '../geometry/units'
 import { isGeometry, type Shape } from '../types'
 import { baseName, downloadBlob } from '../utils/download'
+import { detectedNear } from './detect'
 import { getSession } from './session'
 
 /** ~216 dpi: sharp enough to print, small enough to share. */
@@ -25,6 +27,7 @@ export const exportPng = async (shapes: readonly Shape[], pageIndex: number, inc
   ctx.setTransform(EXPORT_SCALE, 0, 0, EXPORT_SCALE, 0, 0)
   ctx.lineCap = 'round'
   ctx.lineJoin = 'round'
+  const onPage = shapes.filter((s) => s.page === pageIndex).filter(isGeometry)
   for (const s of shapes) {
     // Measures are on-screen annotations, not part of the drawing.
     if (s.page !== pageIndex || !isGeometry(s)) continue
@@ -36,9 +39,11 @@ export const exportPng = async (shapes: readonly Shape[], pageIndex: number, inc
       ctx.fillStyle = color
       ctx.fill(path)
       if (s.name) {
-        const size = mmToPt(3.2)
+        const size = NAME_SIZE
+        const strokes = [...onPage, ...detectedNear(pageIndex, s.p, nameReach(s.name, size)).curves]
+        const at = placeName(s.p, s.name, size, strokes)
         ctx.font = `500 ${size}px Inter, system-ui, sans-serif`
-        ctx.fillText(s.name, s.p.x + size * 0.35, s.p.y - size * 0.35)
+        ctx.fillText(s.name, at.x, at.y)
       }
     } else {
       ctx.strokeStyle = color

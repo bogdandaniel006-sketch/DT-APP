@@ -75,7 +75,7 @@ const SaveMenu = () => {
           <MenuItem
             icon={<Save size={16} />}
             label="Guardar proyecto"
-            hint="editable"
+            hint="se abre con doble clic"
             onSelect={() => {
               close()
               saveProject()

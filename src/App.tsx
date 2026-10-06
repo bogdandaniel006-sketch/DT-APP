@@ -10,13 +10,13 @@ import { TopBar } from './components/TopBar'
 import { useAutosave } from './hooks/useAutosave'
 import { useKeyboard } from './hooks/useKeyboard'
 import { useLockBrowserView } from './hooks/useLockBrowserView'
-import { loadPdfFile, restoreLastSession } from './state/actions'
+import { loadPdfFile, openHandedProject, restoreLastSession } from './state/actions'
 import { appStore } from './state/appStore'
 import { useStore } from './state/createStore'
 
 const droppedFile = (e: DragEvent) =>
   [...e.dataTransfer.files].find(
-    (f) => f.type === 'application/pdf' || f.type.startsWith('image/') || /\.(pdf|lamina)$/i.test(f.name),
+    (f) => f.type === 'application/pdf' || f.type.startsWith('image/') || /\.(pdf|lamina|html)$/i.test(f.name),
   )
 
 /** Files handed over by the system when a .lamina is opened with the installed app. */
@@ -34,6 +34,7 @@ export const App = () => {
   useEffect(() => {
     // Files opened from the system come after the documents of the last visit, on top of them.
     void restoreLastSession().then(() => {
+      void openHandedProject()
       const queue = (window as { launchQueue?: LaunchQueue }).launchQueue
       queue?.setConsumer((params) => {
         void (async () => {

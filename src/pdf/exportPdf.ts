@@ -1,9 +1,11 @@
 import { LineCapStyle, PDFDocument, StandardFonts, rgb, type PDFFont } from 'pdf-lib'
+import { NAME_SIZE, nameReach, placeName } from '../canvas/pointLabel'
 import { LAYER_OPACITY, pencilStroke } from '../canvas/style'
 import { pointOnCircle } from '../geometry/primitives'
 import { mmToPt } from '../geometry/units'
-import type { Shape, Vec } from '../types'
+import { isGeometry, type Shape, type Vec } from '../types'
 import { baseName, downloadBlob } from '../utils/download'
+import { detectedNear } from './detect'
 import { getSession } from './session'
 
 const hexToRgb = (hex: string) => {
@@ -59,8 +61,9 @@ export const exportPdf = async (shapes: readonly Shape[]) => {
           page.drawCircle({ x: c.x, y: c.y, size: mmToPt(0.5), color: style.color, opacity: style.opacity })
           if (s.name) {
             font ??= await out.embedFont(StandardFonts.Helvetica)
-            const size = mmToPt(3.2)
-            const at = toPdf({ x: s.p.x + size * 0.35, y: s.p.y - size * 0.35 })
+            const size = NAME_SIZE
+            const strokes = [...onPage.filter(isGeometry), ...detectedNear(index, s.p, nameReach(s.name, size)).curves]
+            const at = toPdf(placeName(s.p, s.name, size, strokes))
             page.drawText(s.name, { x: at.x, y: at.y, size, font, color: style.color, opacity: style.opacity })
           }
           break
