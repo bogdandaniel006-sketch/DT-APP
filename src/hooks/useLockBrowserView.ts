@@ -1,7 +1,25 @@
 import { useEffect } from 'react'
 import { viewActions } from '../state/appStore'
 import { localPoint } from '../utils/localPoint'
-import { wheelZoomFactor } from '../utils/wheel'
+import { wheelDelta, wheelZoomFactor } from '../utils/wheel'
+
+/**
+ * Whether the wheel over `target` belongs to something that scrolls by itself (a list, a menu,
+ * a dialog) rather than to the desk. Only what lies over the desk's area is handed to the desk.
+ */
+const scrollsItself = (target: EventTarget | null, workspace: Element): boolean => {
+  if (!(target instanceof Element)) return true
+  const area = workspace.getBoundingClientRect()
+  for (let el: Element | null = target; el && el !== document.body; el = el.parentElement) {
+    const style = getComputedStyle(el)
+    const scrollable = /(auto|scroll)/.test(style.overflowY + style.overflowX)
+    if (scrollable && (el.scrollHeight > el.clientHeight || el.scrollWidth > el.clientWidth)) return true
+    if (el.matches('input, textarea, select, [role="dialog"], [role="menu"], [role="listbox"]')) return true
+  }
+  // Only bars that float over the desk: the top bar and the tabs keep their own behaviour.
+  const r = target.getBoundingClientRect()
+  return r.top < area.top || r.bottom > area.bottom + 1
+}
 
 /**
  * The app is a fixed desk: the browser must never zoom or scroll the page
@@ -13,11 +31,21 @@ import { wheelZoomFactor } from '../utils/wheel'
 export const useLockBrowserView = () => {
   useEffect(() => {
     const onWheel = (e: WheelEvent) => {
-      if (!(e.ctrlKey || e.metaKey) || e.defaultPrevented) return
-      e.preventDefault()
+      if (e.defaultPrevented) return
       const workspace = document.querySelector('[data-testid="workspace"]')
-      if (!workspace) return
-      viewActions.zoomAt(localPoint(workspace, e.clientX, e.clientY), wheelZoomFactor(e))
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault()
+        if (workspace) viewActions.zoomAt(localPoint(workspace, e.clientX, e.clientY), wheelZoomFactor(e))
+        return
+      }
+      // Over the bars floating on the desk (pencil, hints, pages…) the wheel still scrolls the sheet:
+      // a construction reaching the edge of the screen can go on without leaving them first.
+      // Lists and menus that scroll on their own keep their wheel.
+      if (!workspace || scrollsItself(e.target, workspace)) return
+      e.preventDefault()
+      const d = wheelDelta(e)
+      if (e.shiftKey && !d.x) viewActions.pan(-d.y, 0)
+      else viewActions.pan(-d.x, -d.y)
     }
     const block = (e: Event) => e.preventDefault()
     const onMouseDown = (e: MouseEvent) => {

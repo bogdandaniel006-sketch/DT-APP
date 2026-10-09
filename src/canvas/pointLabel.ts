@@ -1,6 +1,7 @@
-import { closestPoint, pointOnCircle } from '../geometry/primitives'
+import { angle, closestPoint, closestPointOnArc, pointOnCircle, projectionParam } from '../geometry/primitives'
 import { mmToPt } from '../geometry/units'
-import type { Geometry, Vec } from '../types'
+import { add, length, lerp, normAngle, scale, sub } from '../geometry/vec'
+import type { Geometry, NameSpot, Vec } from '../types'
 
 /** Height of the letters that name points, as on paper. */
 export const NAME_SIZE = mmToPt(2.4)
@@ -125,4 +126,75 @@ export const placeName = (p: Vec, name: string, size: number, strokes: readonly 
     }
   }
   return best ?? { x: p.x + gap, y: p.y - gap }
+}
+
+/** How far a name moved by hand may sit from its line, curve or point, in letter heights. */
+const MAX_SPOT_OFFSET = 2.2
+
+const clamp01 = (t: number) => Math.min(1, Math.max(0, t))
+
+/** Size of the letters of a name: width, and height of capitals. */
+export const nameExtent = (name: string, size: number) => ({ w: size * CHAR_WIDTH * Math.max(1, name.length), h: size * CAP_HEIGHT })
+
+/** Point of the geometry a name moved by hand hangs from. */
+const spotAnchor = (g: Geometry, t: number): Vec => {
+  switch (g.kind) {
+    case 'segment':
+      return lerp(g.a, g.b, clamp01(t))
+    case 'circle':
+      return pointOnCircle(g.c, g.r, t)
+    case 'arc':
+      return pointOnCircle(g.c, g.r, g.start + g.sweep * clamp01(t))
+    case 'point':
+      return g.p
+  }
+}
+
+/** The place along the geometry closest to p, as stored in a NameSpot. */
+const spotParam = (g: Geometry, p: Vec): number => {
+  switch (g.kind) {
+    case 'segment':
+      return clamp01(projectionParam(p, g.a, g.b))
+    case 'circle':
+      return angle(g.c, p)
+    case 'arc': {
+      if (Math.abs(g.sweep) < 1e-9) return 0
+      const theta = angle(g.c, closestPointOnArc(p, g))
+      const turned = g.sweep >= 0 ? normAngle(theta - g.start) : normAngle(g.start - theta)
+      return clamp01(turned / Math.abs(g.sweep))
+    }
+    case 'point':
+      return 0
+  }
+}
+
+/**
+ * Where a name dragged so that its centre is at `centre` ends up: it slides along its line or
+ * curve, and never strays further from it than a couple of letter heights.
+ */
+export const spotFor = (g: Geometry, centre: Vec, size: number): NameSpot => {
+  const t = spotParam(g, centre)
+  let d = sub(centre, spotAnchor(g, t))
+  const max = size * MAX_SPOT_OFFSET
+  if (length(d) > max) d = scale(d, max / length(d))
+  return { t, dx: d.x, dy: d.y }
+}
+
+/**
+ * Where to write the name of a point, a line or a curve (left end of its baseline): where it was
+ * moved by hand, or else around its anchor where it covers the fewest strokes.
+ */
+export const nameBaseline = (
+  g: Geometry & { nameSpot?: NameSpot },
+  name: string,
+  size: number,
+  strokesNear: (anchor: Vec) => readonly Geometry[],
+): Vec => {
+  if (g.nameSpot) {
+    const centre = add(spotAnchor(g, g.nameSpot.t), { x: g.nameSpot.dx, y: g.nameSpot.dy })
+    const { w, h } = nameExtent(name, size)
+    return { x: centre.x - w / 2, y: centre.y + h / 2 }
+  }
+  const anchor = nameAnchor(g)
+  return placeName(anchor, name, size, strokesNear(anchor))
 }

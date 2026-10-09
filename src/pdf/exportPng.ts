@@ -1,10 +1,10 @@
 import { DIMENSION_SIZE, DIMENSION_WIDTH, dimensionFigure, dimensionParts } from '../canvas/dimension'
 import { geometryPath } from '../canvas/paths'
-import { NAME_SIZE, nameAnchor, nameReach, placeName } from '../canvas/pointLabel'
+import { NAME_SIZE, nameBaseline, nameReach } from '../canvas/pointLabel'
 import { LAYER_OPACITY, pencilStroke } from '../canvas/style'
 import { LINE_HEIGHT, textLines, textSize } from '../geometry/text'
 import { mmToPt } from '../geometry/units'
-import { isGeometry, type Shape, type Vec } from '../types'
+import { isGeometry, type GeometryShape, type Shape } from '../types'
 import { baseName, downloadBlob } from '../utils/download'
 import { detectedNear } from './detect'
 import { getSession } from './session'
@@ -38,9 +38,8 @@ export const exportPng = async (shapes: readonly Shape[], pageIndex: number, inc
     ctx.setLineDash(dash ?? [])
     const path = new Path2D(geometryPath(s, mmToPt(0.5)))
     /** Writes a name around its anchor, where it covers the fewest strokes, as on screen. */
-    const writeName = (anchor: Vec, name: string) => {
-      const strokes = [...onPage, ...detectedNear(pageIndex, anchor, nameReach(name, NAME_SIZE)).curves]
-      const at = placeName(anchor, name, NAME_SIZE, strokes)
+    const writeName = (g: GeometryShape, name: string) => {
+      const at = nameBaseline(g, name, NAME_SIZE, (anchor) => [...onPage, ...detectedNear(pageIndex, anchor, nameReach(name, NAME_SIZE)).curves])
       ctx.font = `500 ${NAME_SIZE}px Inter, system-ui, sans-serif`
       ctx.fillText(name, at.x, at.y)
     }
@@ -51,7 +50,7 @@ export const exportPng = async (shapes: readonly Shape[], pageIndex: number, inc
       textLines(s.name ?? '').forEach((line, i) => ctx.fillText(line, s.p.x, s.p.y + i * size * LINE_HEIGHT))
     } else if (s.kind === 'point') {
       ctx.fill(path)
-      if (s.name) writeName(s.p, s.name)
+      if (s.name) writeName(s, s.name)
     } else if (s.kind === 'segment' && s.dimension) {
       const { arrows, tails, figureAt, angle } = dimensionParts(s.a, s.b)
       // Always the thin continuous line of the standard, whatever pencil it was drawn with.
@@ -73,7 +72,7 @@ export const exportPng = async (shapes: readonly Shape[], pageIndex: number, inc
       ctx.strokeStyle = color
       ctx.lineWidth = width
       ctx.stroke(path)
-      if (s.name) writeName(nameAnchor(s), s.name)
+      if (s.name) writeName(s, s.name)
     }
   }
 

@@ -11,6 +11,7 @@ import { documentActions, documentStore } from '../state/documentStore'
 import { isGeometry, isText, type Shape, type Vec } from '../types'
 import { suggestName } from '../pdf/detect'
 import { SHIFT_STEP } from './lineTool'
+import { spotFor } from '../canvas/pointLabel'
 import { segmentOverlays, snapOverlay } from './overlays'
 import type { Overlay, Tool, ToolApi, ToolPointer } from './types'
 
@@ -21,6 +22,8 @@ type Drag =
   | { mode: 'move'; ids: string[]; base: Map<string, Shape>; grab: Vec; anchor: Vec }
   | { mode: 'handle'; handle: Handle; base: Shape }
   | { mode: 'marquee'; from: Vec; to: Vec; additive: boolean }
+  /** Ctrl + drag on a name: it slides along its line, curve or point. */
+  | { mode: 'name'; id: string; grab: Vec }
 
 const HANDLE_PX = 9
 /** PDF snaps that can become named points from the select tool. */
@@ -68,6 +71,8 @@ const sweepTo = (from: number, theta: number, direction: number) =>
 export const createSelectTool = (): Tool => {
   let drag: Drag | null = null
   let hover: Shape | null = null
+  /** Shape whose name is under the cursor while Ctrl is held. */
+  let nameHover: Shape | null = null
   let snap: SnapResult | null = null
 
   const findHandle = (p: Vec, api: ToolApi) => {
@@ -157,6 +162,15 @@ export const createSelectTool = (): Tool => {
 
   return {
     down(e, api) {
+      if (e.ctrl) {
+        const name = api.nameAt(e.world)
+        if (name) {
+          documentActions.beginGesture()
+          drag = { mode: 'name', id: name.shape.id, grab: sub(e.world, name.centre) }
+          nameHover = name.shape
+          return
+        }
+      }
       const handle = findHandle(e.world, api)
       if (handle) {
         const base = selectedShapes(api)[0]!
@@ -202,8 +216,17 @@ export const createSelectTool = (): Tool => {
     },
     move(e, api) {
       if (!drag) {
-        hover = findHandle(e.world, api) ? null : api.hit(e.world)
+        nameHover = e.ctrl ? (api.nameAt(e.world)?.shape ?? null) : null
+        hover = nameHover || findHandle(e.world, api) ? null : api.hit(e.world)
         snap = null
+        return
+      }
+      if (drag.mode === 'name') {
+        const { id, grab } = drag
+        const shape = api.shapes.find((s) => s.id === id)
+        if (!shape || !isGeometry(shape)) return
+        const nameSpot = spotFor(shape, sub(e.world, grab), api.nameSize)
+        documentActions.update([id], (s) => ({ ...s, nameSpot }))
         return
       }
       if (drag.mode === 'marquee') {
@@ -246,8 +269,10 @@ export const createSelectTool = (): Tool => {
       }
       drag = null
       snap = null
+      nameHover = null
     },
     cancel() {
+      nameHover = null
       if (drag && drag.mode !== 'marquee') {
         documentActions.cancelGesture()
         drag = null
@@ -263,6 +288,9 @@ export const createSelectTool = (): Tool => {
     overlays(api) {
       const out: Overlay[] = []
       const sel = selectedShapes(api)
+      // The line, curve or point a name is being moved along.
+      const named = nameHover && api.shapes.find((s) => s.id === nameHover!.id)
+      if (named) for (const geom of outlineOf(named)) out.push({ kind: 'highlight', geom })
       if (hover && !sel.some((s) => s.id === hover!.id) && !drag) {
         for (const geom of outlineOf(hover)) out.push({ kind: 'highlight', geom })
       }
@@ -298,8 +326,10 @@ export const createSelectTool = (): Tool => {
       return out
     },
     hint() {
+      if (drag?.mode === 'name') return 'El nombre se mueve a lo largo de su trazo, sin alejarse de él'
+      if (nameHover) return 'Arrastra para mover el nombre'
       const sel = appStore.get().selection
-      if (!sel.length) return 'Clic en un trazo para seleccionarlo · arrastra para seleccionar varios'
+      if (!sel.length) return 'Clic en un trazo para seleccionarlo · arrastra para seleccionar varios · Ctrl + arrastra un nombre para moverlo'
       if (drag?.mode === 'handle') return drag.handle.kind === 'start' || drag.handle.kind === 'end'
         ? 'El extremo recorre la circunferencia · se ajusta a puntos e intersecciones'
         : drag.handle.kind === 'a' || drag.handle.kind === 'b'
@@ -310,7 +340,8 @@ export const createSelectTool = (): Tool => {
       return null
     },
     cursor() {
-      if (drag?.mode === 'move') return 'grabbing'
+      if (drag?.mode === 'move' || drag?.mode === 'name') return 'grabbing'
+      if (nameHover) return 'grab'
       return hover ? 'pointer' : 'default'
     },
   }

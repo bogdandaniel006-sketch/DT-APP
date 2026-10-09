@@ -4,7 +4,7 @@ import { mmToPt } from '../geometry/units'
 import type { Geometry, GeometryShape, Vec } from '../types'
 import { ARROW_LENGTH, DIMENSION_SIZE, DIMENSION_WIDTH, dimensionFigure, dimensionParts } from './dimension'
 import { geometryPath } from './paths'
-import { MIN_NAME_PX, NAME_SIZE, nameAnchor, nameReach, placeName } from './pointLabel'
+import { MIN_NAME_PX, NAME_SIZE, nameBaseline, nameReach } from './pointLabel'
 import { ACCENT, LAYER_OPACITY, pencilStroke } from './style'
 
 /** Strokes never get thinner than this on screen, so zoomed-out drawings stay legible. */
@@ -49,7 +49,7 @@ export const ShapesLayer = memo(({ shapes, strokesNear, selection, editingId, sc
       const opacity = selected ? 1 : LAYER_OPACITY[s.layer]
       // Names as on paper, never smaller than legible on screen, set where they cover the fewest strokes.
       const nameSize = Math.max(NAME_SIZE, MIN_NAME_PX / scale)
-      const nameAt = (anchor: Vec, name: string) => placeName(anchor, name, nameSize, strokesNear(anchor, nameReach(name, nameSize)))
+      const nameAt = (g: GeometryShape, name: string) => nameBaseline(g, name, nameSize, (anchor) => strokesNear(anchor, nameReach(name, nameSize)))
 
       if (s.kind === 'point' && s.text) {
         // While a text is being rewritten its box shows it; drawing it too would double the letters.
@@ -83,7 +83,7 @@ export const ShapesLayer = memo(({ shapes, strokesNear, selection, editingId, sc
           <g key={s.id} opacity={opacity}>
             <path d={geometryPath(s, Math.max(POINT_RADIUS, 1.6 / scale))} fill={stroke} />
             {s.name && (
-              <Letters at={nameAt(s.p, s.name)} size={nameSize} fill={stroke}>
+              <Letters at={nameAt(s, s.name)} size={nameSize} fill={stroke}>
                 {s.name}
               </Letters>
             )}
@@ -131,7 +131,7 @@ export const ShapesLayer = memo(({ shapes, strokesNear, selection, editingId, sc
             strokeDasharray={dash?.join(' ')}
           />
           {s.name && (
-            <Letters at={nameAt(nameAnchor(s), s.name)} size={nameSize} fill={stroke}>
+            <Letters at={nameAt(s, s.name)} size={nameSize} fill={stroke}>
               {s.name}
             </Letters>
           )}

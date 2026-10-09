@@ -48,6 +48,10 @@ export interface ToolApi {
    */
   snapAlong(p: Vec, origin: Vec, dir: Vec, exclude?: ReadonlySet<string>): SnapResult
   hit(p: Vec, filter?: (s: Shape) => boolean): Shape | null
+  /** Height the names of points, lines and curves are written at on screen (desk units). */
+  readonly nameSize: number
+  /** The shape whose name is written under p, and the centre of that name. */
+  nameAt(p: Vec): { shape: Shape; centre: Vec } | null
   /** A drawn segment or a line of the PDF under p. */
   lineAt(p: Vec): ReferenceLine | null
   /** Drawn and PDF straight lines near p (desk coordinates). */

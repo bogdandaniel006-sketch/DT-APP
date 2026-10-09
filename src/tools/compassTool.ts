@@ -14,6 +14,12 @@ type Stage =
   | { name: 'measure'; from: Vec | null }
 
 const FULL_TURN_TOL = 1e-3
+/** Coming back this close (screen px) to where an arc started closes it into the whole circle. */
+const CLOSE_PX = 10
+
+/** The sweep of an arc being drawn, made a whole turn once its end comes back near its start. */
+const closedSweep = (sweep: number, r: number, api: ToolApi) =>
+  Math.abs(sweep) > Math.PI && (TAU - Math.abs(sweep)) * r <= api.px(CLOSE_PX) ? Math.sign(sweep) * TAU : sweep
 
 /**
  * Compass (circles) and arc tool share one flow:
@@ -69,7 +75,8 @@ export const createCompassTool = (mode: 'circle' | 'arc'): Tool => {
           return
         }
         case 'sweep': {
-          const { center, r, start, sweep } = stage
+          const { center, r, start } = stage
+          const sweep = closedSweep(stage.sweep, r, api)
           if (Math.abs(sweep) >= TAU - FULL_TURN_TOL) api.create([circleFromCenterRadius(center, r)])
           else if (Math.abs(sweep) > 1e-3) api.create([arcFromPoints(center, pointOnCircle(center, r, start), sweep, r)])
           stage = { name: 'center' }
@@ -98,7 +105,7 @@ export const createCompassTool = (mode: 'circle' | 'arc'): Tool => {
       stage = { name: 'center' }
       return had
     },
-    overlays() {
+    overlays(api) {
       sync()
       const out: Overlay[] = []
       const p = cursor
@@ -128,16 +135,21 @@ export const createCompassTool = (mode: 'circle' | 'arc'): Tool => {
           break
         }
         case 'sweep': {
-          const { center, r, start, sweep } = stage
+          const { center, r, start } = stage
+          const sweep = closedSweep(stage.sweep, r, api)
+          const full = Math.abs(sweep) >= TAU - FULL_TURN_TOL
           const end = pointOnCircle(center, r, start + sweep)
-          out.push({ kind: 'ghost', geom: circleFromCenterRadius(center, r), faint: true })
-          out.push({ kind: 'ghost', geom: arcFromPoints(center, pointOnCircle(center, r, start), sweep, r) })
+          if (full) out.push({ kind: 'ghost', geom: circleFromCenterRadius(center, r) })
+          else {
+            out.push({ kind: 'ghost', geom: circleFromCenterRadius(center, r), faint: true })
+            out.push({ kind: 'ghost', geom: arcFromPoints(center, pointOnCircle(center, r, start), sweep, r) })
+          }
           out.push({ kind: 'guide', a: center, b: end }, { kind: 'marker', p: center, label: 'O' })
           out.push({ kind: 'marker', p: pointOnCircle(center, r, start) }, { kind: 'marker', p: end })
           out.push({
             kind: 'label',
             at: end,
-            text: `R ${formatLength(r)} · ${formatAngle(sweep)}`,
+            text: full ? `R ${formatLength(r)} · circunferencia completa` : `R ${formatLength(r)} · ${formatAngle(sweep)}`,
             offset: { x: 0, y: -24 },
           })
           break
@@ -159,7 +171,7 @@ export const createCompassTool = (mode: 'circle' | 'arc'): Tool => {
           if (fixed) return 'Clic para fijar el inicio del arco'
           return mode === 'circle' ? 'Clic para fijar el radio' : 'Clic para fijar el radio y el inicio del arco'
         case 'sweep':
-          return 'Gira y haz clic para terminar el arco'
+          return 'Gira y haz clic para terminar el arco · vuelve al inicio para cerrar la circunferencia'
       }
     },
   }

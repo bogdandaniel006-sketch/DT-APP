@@ -1,11 +1,11 @@
 import { LineCapStyle, PDFDocument, StandardFonts, degrees, rgb, type PDFFont } from 'pdf-lib'
 import { DIMENSION_SIZE, DIMENSION_WIDTH, dimensionFigure, dimensionParts } from '../canvas/dimension'
-import { NAME_SIZE, nameAnchor, nameReach, placeName } from '../canvas/pointLabel'
+import { NAME_SIZE, nameBaseline, nameReach } from '../canvas/pointLabel'
 import { LAYER_OPACITY, pencilStroke } from '../canvas/style'
 import { pointOnCircle } from '../geometry/primitives'
 import { LINE_HEIGHT, textLines, textSize } from '../geometry/text'
 import { mmToPt } from '../geometry/units'
-import { isGeometry, type Shape, type Vec } from '../types'
+import { isGeometry, type GeometryShape, type Shape, type Vec } from '../types'
 import { baseName, downloadBlob } from '../utils/download'
 import { detectedNear } from './detect'
 import { stamp } from './make'
@@ -44,8 +44,8 @@ export const exportPdf = async (shapes: readonly Shape[]) => {
       const dashArray = dash ? [...dash] : undefined
       const style = { color: hexToRgb(color), opacity: LAYER_OPACITY[s.layer] }
       /** Where a name goes around its anchor so that it covers the fewest strokes, as on screen. */
-      const nameAt = (anchor: Vec, name: string) =>
-        placeName(anchor, name, NAME_SIZE, [...strokes, ...detectedNear(index, anchor, nameReach(name, NAME_SIZE)).curves])
+      const nameAt = (g: GeometryShape, name: string) =>
+        nameBaseline(g, name, NAME_SIZE, (anchor) => [...strokes, ...detectedNear(index, anchor, nameReach(name, NAME_SIZE)).curves])
       /** Writes at a point of the page (left end of the baseline), leaving out what the font cannot print. */
       const write = async (text: string, at: Vec, size: number) => {
         const used = (font ??= await out.embedFont(StandardFonts.Helvetica))
@@ -82,7 +82,7 @@ export const exportPdf = async (shapes: readonly Shape[]) => {
           }
           const c = toPdf(s.p)
           page.drawCircle({ x: c.x, y: c.y, size: mmToPt(0.5), color: style.color, opacity: style.opacity })
-          if (s.name) await write(s.name, nameAt(s.p, s.name), NAME_SIZE)
+          if (s.name) await write(s.name, nameAt(s, s.name), NAME_SIZE)
           break
         }
         case 'arc': {
@@ -126,7 +126,7 @@ export const exportPdf = async (shapes: readonly Shape[]) => {
         }
       } else if (isGeometry(s) && s.kind !== 'point' && s.name) {
         // Names of lines and curves, placed as on screen.
-        await write(s.name, nameAt(nameAnchor(s), s.name), NAME_SIZE)
+        await write(s.name, nameAt(s, s.name), NAME_SIZE)
       }
     }
   }

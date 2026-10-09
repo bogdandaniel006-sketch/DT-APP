@@ -25,9 +25,12 @@ import { NamePopover } from './NamePopover'
 import { OverlayLayer } from './OverlayLayer'
 import { PdfPages } from './PdfPageLayer'
 import { ShapesLayer } from './ShapesLayer'
+import { MIN_NAME_PX, NAME_SIZE, nameBaseline, nameExtent, nameReach } from './pointLabel'
 import { TextEditor } from './TextEditor'
 
 const HIT_PX = 7
+/** Names are picked a little beyond their letters, so that small ones are easy to grab. */
+const NAME_PICK_PX = 3
 const INSTRUMENTS: InstrumentKind[] = ['escuadra', 'cartabon']
 /** Tools that place points precisely: the loupe follows the cursor with them. */
 const PRECISION_TOOLS = new Set(['select', 'point', 'line', 'perpendicular', 'parallel', 'bisector', 'compass', 'arc', 'dimension', 'measure-distance', 'measure-angle'])
@@ -35,6 +38,8 @@ const PRECISION_TOOLS = new Set(['select', 'point', 'line', 'perpendicular', 'pa
 export const Workspace = ({ spaceDown }: { spaceDown: boolean }) => {
   const container = useRef<HTMLDivElement>(null)
   const pan = useRef<{ last: Vec; id: number } | null>(null)
+  /** Where the cursor last was over the desk, to replay it when the view moves under it. */
+  const lastPointer = useRef<ToolPointer | null>(null)
   const [panning, setPanning] = useState(false)
   const [cursorAt, setCursorAt] = useState<Vec | null>(null)
 
@@ -88,6 +93,8 @@ export const Workspace = ({ spaceDown }: { spaceDown: boolean }) => {
 
   const api = useMemo<ToolApi>(() => {
     const px = (n: number) => n / view.scale
+    // As ShapesLayer writes them: as on paper, never smaller than legible on screen.
+    const nameSize = Math.max(NAME_SIZE, MIN_NAME_PX / view.scale)
     const offsetOf = (page: number) => pageOffset(pageRects, page)
 
     /** Detected PDF geometry near a desk point, converted to desk coordinates. */
@@ -120,6 +127,21 @@ export const Workspace = ({ spaceDown }: { spaceDown: boolean }) => {
         return snapAlongLine(on, unit, { geoms, edges, pdf: pdfNear(on, radius) }, radius, snapMode)
       },
       hit: (p, filter) => hitTest(shapes, p, px(HIT_PX), filter),
+      nameSize,
+      nameAt(p) {
+        // Last drawn on top: the name that shows is the one picked.
+        for (let i = geometryShapes.length - 1; i >= 0; i--) {
+          const s = geometryShapes[i]!
+          if (!s.name || isText(s) || s.dimension) continue
+          const at = nameBaseline(s, s.name, nameSize, (anchor) => strokesNear(anchor, nameReach(s.name!, nameSize)))
+          const { w, h } = nameExtent(s.name, nameSize)
+          const pad = px(NAME_PICK_PX)
+          if (p.x >= at.x - pad && p.x <= at.x + w + pad && p.y >= at.y - h - pad && p.y <= at.y + pad) {
+            return { shape: s, centre: { x: at.x + w / 2, y: at.y - h / 2 } }
+          }
+        }
+        return null
+      },
       lineAt(p) {
         const own = hitTest(geometryShapes, p, px(HIT_PX), (s) => s.kind === 'segment')
         if (own && own.kind === 'segment') return { seg: own, id: own.id }
@@ -152,7 +174,7 @@ export const Workspace = ({ spaceDown }: { spaceDown: boolean }) => {
       },
     }
     // `detected` is a dependency so snapping picks up pages as their detection completes.
-  }, [shapes, geometryShapes, snapShapes, edges, view.scale, pageRects, snapMode, allShapes, detected])
+  }, [shapes, geometryShapes, snapShapes, edges, view.scale, pageRects, snapMode, allShapes, detected, strokesNear])
 
   const tool = tools[toolId]
 
@@ -224,7 +246,18 @@ export const Workspace = ({ spaceDown }: { spaceDown: boolean }) => {
     bumpTools()
   }
 
+  // Scrolling or zooming moves the sheet under a still cursor: the construction in progress
+  // follows, as if the cursor had moved over the sheet, so it can go on past the edge of the screen.
+  useEffect(() => {
+    const last = lastPointer.current
+    if (!last || pan.current) return
+    tool.move({ ...last, world: screenToDesk(view, last.screen) }, api)
+    bumpTools()
+    // Only a change of view should replay the cursor.
+  }, [view])
+
   const onPointerMove = (e: ReactPointerEvent) => {
+    lastPointer.current = pointer(e)
     if (pan.current) {
       viewActions.pan(e.clientX - pan.current.last.x, e.clientY - pan.current.last.y)
       pan.current.last = { x: e.clientX, y: e.clientY }

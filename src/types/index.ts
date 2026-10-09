@@ -51,6 +51,18 @@ export type Shape = Drawable & {
   size?: number
   /** A segment that is a dimension line: arrowheads and its figure (the name, or else the length). */
   dimension?: boolean
+  /** Where the name was moved by hand (Ctrl + drag); placed automatically when absent. */
+  nameSpot?: NameSpot
+}
+
+/**
+ * A name moved by hand: the place along its line, curve or point it hangs from (`t`: fraction of
+ * a segment or an arc, angle on a circle) and the offset of the centre of the letters from there.
+ */
+export interface NameSpot {
+  t: number
+  dx: number
+  dy: number
 }
 
 export type GeometryShape = Shape & Geometry
