@@ -2,6 +2,7 @@ import { ArrowLeft, File, FolderOpen } from 'lucide-react'
 import { newBlankSheet, resumeWorkspace } from '../state/actions'
 import { appStore } from '../state/appStore'
 import { useStore } from '../state/createStore'
+import { reviewSharing } from '../state/sharing'
 import { baseName } from '../utils/download'
 import { Credit } from './Credit'
 import { ExercisesButton } from './Exercises'
@@ -65,6 +66,13 @@ export const StartScreen = () => {
         )}
         <p className="mt-4 text-[13px] text-muted">Abre un PDF, una imagen o un proyecto (.lamina), o pega una imagen con Ctrl + V.</p>
         {error && <p className="mt-4 text-[13px] text-red-600">{error}</p>}
+        <button
+          type="button"
+          onClick={reviewSharing}
+          className="mt-6 text-[11.5px] text-faint underline-offset-2 outline-none hover:text-muted hover:underline focus-visible:underline"
+        >
+          Privacidad
+        </button>
       </div>
     </main>
   )

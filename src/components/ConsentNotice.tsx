@@ -57,8 +57,8 @@ export const ConsentNotice = () => {
         </p>
         <p>Si rechazas, no sale nada de tu ordenador y la app funciona exactamente igual.</p>
         <p className="text-[12px] text-muted">
-          Si tienes menos de 14 años, acepta solo con permiso de tu madre, padre o tutor. Puedes cambiarlo cuando quieras en Guardar y exportar →
-          Privacidad; si lo retiras, se borra todo lo enviado.{' '}
+          Si tienes menos de 14 años, acepta solo con permiso de tu madre, padre o tutor. Puedes cambiarlo cuando quieras en «Privacidad», en el menú
+          de Controles (el teclado) o abajo en la pantalla de inicio; si lo retiras, se borra todo lo enviado.{' '}
           <a href="/privacidad" target="_blank" rel="noopener" className="font-medium text-accent underline">
             Más información
           </a>

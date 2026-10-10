@@ -1,6 +1,7 @@
 import { Keyboard, RotateCcw } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useStore } from '../state/createStore'
+import { reviewSharing } from '../state/sharing'
 import {
   SHORTCUT_ACTIONS,
   isBindable,
@@ -143,7 +144,7 @@ export const ControlsMenu = () => (
       </IconButton>
     )}
   >
-    {() => (
+    {(close) => (
       <div className="max-h-[calc(100vh-5rem)] w-80 overflow-y-auto">
         <Shortcuts />
         {FIXED.map((g) => (
@@ -157,6 +158,16 @@ export const ControlsMenu = () => (
             ))}
           </section>
         ))}
+        <button
+          type="button"
+          onClick={() => {
+            close()
+            reviewSharing()
+          }}
+          className="mx-2.5 mb-1 mt-1 text-[11.5px] text-faint underline-offset-2 outline-none hover:text-muted hover:underline focus-visible:underline"
+        >
+          Privacidad
+        </button>
       </div>
     )}
   </Popover>
