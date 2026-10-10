@@ -7,7 +7,12 @@
     "directory": "./dist",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    // Exercise sheets and projects opened from a web file go through the worker; every other path is the app.
-    "run_worker_first": ["/ejercicios/*", "/abrir"]
+    // Exercise sheets, projects opened from a web file, what people send and the creator's panel go through the worker; every other path is the app.
+    "run_worker_first": ["/ejercicios/*", "/abrir", "/registro/*", "/panelcreador", "/panelcreador/*"]
   }
+  // Where the sheets and the activity of people who accepted are kept (see worker/registro.js).
+  // Until both exist in Cloudflare and are written here, nothing is kept and the panel says so.
+  // The panel's password is the PANEL_CLAVE secret of the worker, set in Cloudflare, never here.
+  // "d1_databases": [{ "binding": "DB", "database_name": "lamina", "database_id": "" }],
+  // "r2_buckets": [{ "binding": "LAMINAS", "bucket_name": "lamina-laminas" }]
 }

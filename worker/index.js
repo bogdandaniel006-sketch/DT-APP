@@ -2,12 +2,17 @@
  * Hands the sheets of the exercise library to the app, which cannot read them from the
  * browser: their sites do not let other pages read their files, and the main one is only
  * served over http. Only PDFs of the sites listed here can be requested, each fetched from
- * its original when asked for; nothing is stored. Everything else is the app.
+ * its original when asked for; none is stored. Besides these and the paths below, everything is the app.
  *
  *   /ejercicios/doc/…  /ejercicios/pau/…   the main library (dtecnico.com)
  *   /ejercicios/<id>/…                     the other sites of src/data/exercises.ts
  *   POST /abrir                            a project opened from its web file (see openProject)
+ *   /registro/…                            what people who accepted send: activity and sheets (see registro.js)
+ *   /panelcreador                          the creator's panel (see panel.js)
  */
+import { panel } from './panel.js'
+import { registro } from './registro.js'
+
 const MAIN = 'http://dtecnico.com/'
 const MAIN_SHEET = /^(?:doc|pau)\/[a-z0-9-]+\.pdf$/
 
@@ -77,6 +82,8 @@ export default {
   async fetch(request, env) {
     const { pathname } = new URL(request.url)
     if (request.method === 'POST' && pathname === '/abrir') return openProject(request, env)
+    if (pathname.startsWith('/registro/')) return registro(request, env, pathname.slice(10))
+    if (pathname === '/panelcreador' || pathname.startsWith('/panelcreador/')) return panel(request, env)
     const original = request.method === 'GET' && pathname.startsWith('/ejercicios/') ? originalOf(pathname.slice(12)) : null
     if (!original) return env.ASSETS.fetch(request)
 

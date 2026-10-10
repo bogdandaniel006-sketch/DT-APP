@@ -32,6 +32,7 @@ import {
   type StoredTab,
 } from '../utils/storage'
 import { appStore, viewActions } from './appStore'
+import { noteExported, noteOpened, type OpenedKind } from './sharing'
 import { documentActions, documentStore } from './documentStore'
 
 const nextFrame = () => new Promise((r) => requestAnimationFrame(() => r(undefined)))
@@ -74,7 +75,16 @@ const show = async (tab: StoredTab, drawing?: Drawing) => {
  * Opens a PDF in a tab of its own (or goes to the tab that already has it) and restores the
  * drawing previously made on it, if any. `own` marks documents made here: blank sheets, pictures.
  */
-export const loadPdf = async (bytes: Uint8Array, name: string, options: { drawing?: Drawing; own?: boolean } = {}) => {
+export const loadPdf = async (
+  bytes: Uint8Array,
+  name: string,
+  options: {
+    drawing?: Drawing
+    own?: boolean
+    /** What was opened, noted for those who send their sheets. */
+    kind?: OpenedKind
+  } = {},
+) => {
   const previousPhase = appStore.get().phase
   flushAutosave()
   appStore.set({ phase: 'loading', error: null })
@@ -88,6 +98,7 @@ export const loadPdf = async (bytes: Uint8Array, name: string, options: { drawin
       await saveTabFile(tab.id, { name, bytes })
     }
     await show(tab, options.drawing)
+    if (options.kind) noteOpened(options.kind)
   } catch (err) {
     console.error(err)
     appStore.set({
@@ -112,12 +123,12 @@ export const loadPdfFile = async (file: File) => {
       appStore.set({ error: 'No se ha podido abrir el proyecto. El archivo está dañado.' })
       return
     }
-    return loadPdf(project.bytes, project.name, { drawing: project })
+    return loadPdf(project.bytes, project.name, { drawing: project, kind: 'proyecto' })
   }
-  if (isPdf(bytes) || !isImage(file)) return loadPdf(bytes, file.name)
+  if (isPdf(bytes) || !isImage(file)) return loadPdf(bytes, file.name, { kind: 'pdf' })
   try {
     const name = `${file.name.replace(/\.[a-z0-9]+$/i, '') || 'Imagen'}.pdf`
-    await loadPdf(await imagePdf(file), name, { own: true })
+    await loadPdf(await imagePdf(file), name, { own: true, kind: 'imagen' })
   } catch (err) {
     console.error(err)
     appStore.set({ error: 'No se ha podido abrir la imagen.' })
@@ -136,7 +147,7 @@ const freeName = (base: string) => {
 /** A blank sheet to draw freely on, in a tab of its own. */
 export const newBlankSheet = async (format: SheetFormat = 'a4-portrait') => {
   try {
-    await loadPdf(await blankPdf(format), freeName('Hoja en blanco'), { own: true })
+    await loadPdf(await blankPdf(format), freeName('Hoja en blanco'), { own: true, kind: 'blanco' })
   } catch (err) {
     console.error(err)
     appStore.set({ error: 'No se ha podido crear la hoja.' })
@@ -240,7 +251,7 @@ export const loadPdfFromUrl = async (url: string, name: string): Promise<boolean
     const response = await fetch(url)
     // Without the sheet service every path answers with the app's own page: that is not a PDF.
     if (!response.ok || !response.headers.get('content-type')?.includes('pdf')) return false
-    await loadPdf(new Uint8Array(await response.arrayBuffer()), name)
+    await loadPdf(new Uint8Array(await response.arrayBuffer()), name, { kind: 'ejercicio' })
     return true
   } catch {
     return false
@@ -256,6 +267,25 @@ export const saveProject = async () => {
   if (!session) return
   const project = { name: session.name, bytes: session.bytes, shapes: [...documentStore.get().shapes], page: appStore.get().page }
   downloadBlob(await encodeProjectPage(project, location.origin), baseName(session.name) + WEB_PROJECT_EXTENSION)
+  noteExported('proyecto')
+}
+
+/**
+ * Opens a sheet someone sent, from the creator's panel ("Abrir en la mesa" links to /?ver=<device>/<sheet>).
+ * The panel serves it only to the signed-in creator; the address is then cleaned.
+ */
+export const openFromPanel = async () => {
+  const wanted = new URLSearchParams(location.search).get('ver')
+  if (!wanted || !/^[a-z0-9-]+\/[a-f0-9]+$/.test(wanted)) return
+  history.replaceState(null, '', '/')
+  try {
+    const reply = await fetch(`/panelcreador/proyecto/${wanted}`)
+    if (!reply.ok) throw new Error(`panel ${reply.status}`)
+    await loadPdfFile(new File([await reply.arrayBuffer()], 'lamina.lamina'))
+  } catch (err) {
+    console.error(err)
+    appStore.set({ error: 'No se ha podido abrir la lámina. ¿Has entrado en el panel?' })
+  }
 }
 
 /**

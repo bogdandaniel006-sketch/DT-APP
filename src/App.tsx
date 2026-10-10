@@ -1,5 +1,6 @@
 import { useEffect, useState, type DragEvent } from 'react'
 import { Workspace } from './canvas/Workspace'
+import { ConsentNotice } from './components/ConsentNotice'
 import { ContextBar } from './components/ContextBar'
 import { Credit } from './components/Credit'
 import { PageNav } from './components/PageNav'
@@ -10,9 +11,10 @@ import { TopBar } from './components/TopBar'
 import { useAutosave } from './hooks/useAutosave'
 import { useKeyboard } from './hooks/useKeyboard'
 import { useLockBrowserView } from './hooks/useLockBrowserView'
-import { loadPdfFile, openHandedProject, restoreLastSession } from './state/actions'
+import { loadPdfFile, openFromPanel, openHandedProject, restoreLastSession } from './state/actions'
 import { appStore } from './state/appStore'
 import { useStore } from './state/createStore'
+import { watchDrawing } from './state/sharing'
 
 const droppedFile = (e: DragEvent) =>
   [...e.dataTransfer.files].find(
@@ -30,11 +32,13 @@ export const App = () => {
   const [hasWorkspace, setHasWorkspace] = useState(false)
   useAutosave()
   useLockBrowserView()
+  useEffect(watchDrawing, [])
 
   useEffect(() => {
     // Files opened from the system come after the documents of the last visit, on top of them.
     void restoreLastSession().then(() => {
       void openHandedProject()
+      void openFromPanel()
       const queue = (window as { launchQueue?: LaunchQueue }).launchQueue
       queue?.setConsumer((params) => {
         void (async () => {
@@ -109,6 +113,7 @@ export const App = () => {
       ) : (
         <StartScreen />
       )}
+      <ConsentNotice />
     </div>
   )
 }

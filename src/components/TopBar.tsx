@@ -1,4 +1,4 @@
-import { Check, ChevronDown, Download, FileText, FolderOpen, House, Image, Magnet, Maximize, Redo2, Save, ScanSearch, TriangleAlert, Undo2 } from 'lucide-react'
+import { Check, ChevronDown, Download, FileText, FolderOpen, House, Image, Magnet, Maximize, Redo2, Save, ScanSearch, ShieldCheck, TriangleAlert, Undo2 } from 'lucide-react'
 import { detectionStore, detectionSummary } from '../pdf/detect'
 import type { SnapMode } from '../types'
 import { useState } from 'react'
@@ -6,6 +6,7 @@ import { goToStart, loadPdfFile, saveProject } from '../state/actions'
 import { appStore, viewActions, zoomPercent } from '../state/appStore'
 import { useStore } from '../state/createStore'
 import { documentActions, documentStore } from '../state/documentStore'
+import { noteExported, reviewSharing } from '../state/sharing'
 import { shortcutLabel, shortcutStore } from '../state/shortcuts'
 import { pickPdf } from '../utils/filePicker'
 import { ControlsMenu } from './ControlsMenu'
@@ -59,7 +60,10 @@ const SaveMenu = () => {
             hint="original + trazos"
             onSelect={() => {
               close()
-              void run(async () => (await import('../pdf/exportPdf')).exportPdf(visibleShapes()))
+              void run(async () => {
+                await (await import('../pdf/exportPdf')).exportPdf(visibleShapes())
+                noteExported('pdf')
+              })
             }}
           />
           <MenuItem
@@ -69,7 +73,10 @@ const SaveMenu = () => {
             onSelect={() => {
               close()
               const { page, pdfVisible } = appStore.get()
-              void run(async () => (await import('../pdf/exportPng')).exportPng(visibleShapes(), page, pdfVisible))
+              void run(async () => {
+                await (await import('../pdf/exportPng')).exportPng(visibleShapes(), page, pdfVisible)
+                noteExported('png')
+              })
             }}
           />
           <MenuItem
@@ -93,6 +100,15 @@ const SaveMenu = () => {
               {savedAt ? 'Tu trabajo se guarda automáticamente' : 'Se guardará automáticamente'}
             </p>
           )}
+          <MenuItem
+            icon={<ShieldCheck size={16} />}
+            label="Privacidad"
+            hint="envío de láminas"
+            onSelect={() => {
+              close()
+              reviewSharing()
+            }}
+          />
           <div className="mx-2 my-1 h-px bg-black/[0.06]" />
           <p className="flex px-2.5 pb-1 pt-1.5">
             <Credit className="text-[11.5px]" />
