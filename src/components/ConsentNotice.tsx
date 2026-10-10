@@ -59,7 +59,7 @@ export const ConsentNotice = () => {
         <p className="text-[12px] text-muted">
           Si tienes menos de 14 años, acepta solo con permiso de tu madre, padre o tutor. Puedes cambiarlo cuando quieras en Guardar y exportar →
           Privacidad; si lo retiras, se borra todo lo enviado.{' '}
-          <a href="/privacidad.html" target="_blank" rel="noopener" className="font-medium text-accent underline">
+          <a href="/privacidad" target="_blank" rel="noopener" className="font-medium text-accent underline">
             Más información
           </a>
         </p>
