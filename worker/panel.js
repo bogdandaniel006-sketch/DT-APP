@@ -1,4 +1,5 @@
-import { DEVICE, PRINT, drawingKey, fileKey, tables } from './registro.js'
+import { fetchSheet, originalOf } from './ejercicios.js'
+import { DEVICE, ORIGIN, PRINT, tables } from './registro.js'
 
 /**
  * The creator's panel, at /panelcreador: the sheets people who accepted have worked on, what
@@ -98,9 +99,9 @@ const describe = (type, detail) => {
 const device = (d) => `<code title="${escape(d)}">${escape(d.slice(0, 6))}</code>`
 
 const panelPage = async (env) => {
-  if (!env.DB || !env.LAMINAS) {
+  if (!env.DB) {
     return html(`<main><header><h1>Panel del creador</h1><a href="/panelcreador/salir">Salir</a></header>
-<section><p>Falta conectar la base de datos (D1) y el almacén de láminas (R2) en <code>wrangler.jsonc</code>. Hasta entonces no se guarda nada.</p></section></main>`)
+<section><p>Falta conectar la base de datos (D1) en <code>wrangler.jsonc</code>. Hasta entonces no se guarda nada.</p></section></main>`)
   }
   const db = env.DB
   await tables(db)
@@ -111,7 +112,9 @@ const panelPage = async (env) => {
       "SELECT (SELECT COUNT(DISTINCT dispositivo) FROM eventos) AS dispositivos, (SELECT COUNT(*) FROM laminas) AS laminas, (SELECT COUNT(*) FROM eventos WHERE tipo = 'exportar') AS exportaciones, (SELECT COUNT(*) FROM eventos WHERE tipo = 'abrir') AS aperturas",
     ),
     db.prepare('SELECT COUNT(DISTINCT dispositivo) AS activos, COUNT(*) AS acciones FROM eventos WHERE fecha > ?1').bind(now - 7 * day),
-    db.prepare('SELECT * FROM laminas ORDER BY actualizada DESC LIMIT 300'),
+    db.prepare(
+      'SELECT l.dispositivo, l.huella, l.nombre, l.paginas, l.trazos, l.origen, l.actualizada, l.exportada, a.huella IS NOT NULL AS guardado FROM laminas l LEFT JOIN archivos a ON a.dispositivo = l.dispositivo AND a.huella = l.huella ORDER BY l.actualizada DESC LIMIT 300',
+    ),
     db.prepare(
       "SELECT json_extract(detalle, '$.nombre') AS nombre, COUNT(*) AS veces, COUNT(DISTINCT dispositivo) AS personas FROM eventos WHERE tipo = 'abrir' AND json_extract(detalle, '$.tipo') = 'ejercicio' AND fecha > ?1 GROUP BY nombre ORDER BY veces DESC LIMIT 50",
     ).bind(now - 30 * day),
@@ -123,10 +126,16 @@ const panelPage = async (env) => {
   const sheetRows = sheets.results
     .map((s) => {
       const at = `${encodeURIComponent(s.dispositivo)}/${encodeURIComponent(s.huella)}`
-      return `<tr><td class="name">${escape(s.nombre ?? 'lamina.pdf')}</td><td class="num">${s.paginas ?? '—'}</td><td class="num">${s.trazos ?? 0}</td>
+      // Big files people opened are not kept: of those there is the name and the strokes, not the sheet.
+      const openable = s.guardado || s.origen
+      return `<tr><td class="name">${escape(s.nombre ?? 'lamina.pdf')}${s.origen ? ' <span class="tag">Biblioteca</span>' : ''}</td><td class="num">${s.paginas ?? '—'}</td><td class="num">${s.trazos ?? 0}</td>
 <td>${s.exportada ? `<span class="tag">${s.exportada} ${s.exportada === 1 ? 'vez' : 'veces'}</span>` : '<span class="muted">No</span>'}</td>
 <td>${device(s.dispositivo)}</td><td class="muted">${when(s.actualizada)}</td>
-<td><a class="btn" href="/?ver=${at}" target="_blank" rel="noopener">Abrir en la mesa</a><a class="btn" href="/panelcreador/archivo/${at}" target="_blank" rel="noopener">PDF original</a></td></tr>`
+<td>${
+        openable
+          ? `<a class="btn" href="/?ver=${at}" target="_blank" rel="noopener">Abrir en la mesa</a><a class="btn" href="/panelcreador/archivo/${at}" target="_blank" rel="noopener">PDF original</a>`
+          : '<span class="muted" title="Archivo de más de 256 KB: no se guarda">Archivo grande, no guardado</span>'
+      }</td></tr>`
     })
     .join('')
 
@@ -153,13 +162,32 @@ const panelPage = async (env) => {
 
 const MAGIC = encoder.encode('LAMINA1\n')
 
+/** The original of a sheet: kept in the database, or brought again from the library it came from. */
+const original = async (db, d, f) => {
+  const sheet = await db.prepare('SELECT nombre, origen, dibujo FROM laminas WHERE dispositivo = ?1 AND huella = ?2').bind(d, f).first()
+  if (!sheet) return null
+  const kept = await db.prepare('SELECT datos FROM archivos WHERE dispositivo = ?1 AND huella = ?2').bind(d, f).first()
+  let pdf = kept?.datos ? new Uint8Array(kept.datos) : null
+  if (!pdf && sheet.origen && ORIGIN.test(sheet.origen)) {
+    const address = originalOf(sheet.origen.slice('/ejercicios/'.length))
+    const fetched = address ? await fetchSheet(address) : null
+    pdf = fetched ? new Uint8Array(await fetched.arrayBuffer()) : null
+  }
+  return pdf && { pdf, sheet }
+}
+
 /** A sheet and its strokes as a project file (.lamina), which the app opens as it is (see src/utils/project.ts). */
-const project = async (env, d, f) => {
-  const [file, drawing] = await Promise.all([env.LAMINAS.get(fileKey(d, f)), env.LAMINAS.get(drawingKey(d, f))])
-  if (!file) return null
-  const pdf = new Uint8Array(await file.arrayBuffer())
-  const saved = drawing ? await drawing.json() : { shapes: [], page: 0 }
-  const header = encoder.encode(JSON.stringify({ version: 1, name: file.customMetadata?.name ?? 'lamina.pdf', shapes: saved.shapes ?? [], page: saved.page ?? 0 }))
+const project = async (db, d, f) => {
+  const found = await original(db, d, f)
+  if (!found) return null
+  const { pdf, sheet } = found
+  let saved = { shapes: [], page: 0 }
+  try {
+    saved = JSON.parse(sheet.dibujo ?? 'null') ?? saved
+  } catch {
+    /* no strokes kept */
+  }
+  const header = encoder.encode(JSON.stringify({ version: 1, name: sheet.nombre ?? 'lamina.pdf', shapes: saved.shapes ?? [], page: saved.page ?? 0 }))
   const out = new Uint8Array(MAGIC.length + 4 + header.length + pdf.length)
   out.set(MAGIC)
   new DataView(out.buffer).setUint32(MAGIC.length, header.length)
@@ -200,15 +228,16 @@ export const panel = async (request, env) => {
   if (!rest) return panelPage(env)
 
   const [kind, d, f] = rest.split('/').map(decodeURIComponent)
-  if (!env.LAMINAS || !DEVICE.test(d ?? '') || !PRINT.test(f ?? '')) return new Response('No encontrado.', { status: 404 })
+  if (!env.DB || !DEVICE.test(d ?? '') || !PRINT.test(f ?? '')) return new Response('No encontrado.', { status: 404 })
+  await tables(env.DB)
   if (kind === 'archivo') {
-    const file = await env.LAMINAS.get(fileKey(d, f))
-    if (!file) return new Response('No encontrado.', { status: 404 })
-    const name = (file.customMetadata?.name ?? 'lamina.pdf').replace(/[^\w .()-]/g, '_')
-    return new Response(file.body, { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="${name}"`, 'Cache-Control': 'no-store' } })
+    const found = await original(env.DB, d, f)
+    if (!found) return new Response('Este archivo no se guardó.', { status: 404 })
+    const name = (found.sheet.nombre ?? 'lamina.pdf').replace(/[^\w .()-]/g, '_')
+    return new Response(found.pdf, { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="${name}"`, 'Cache-Control': 'no-store' } })
   }
   if (kind === 'proyecto') {
-    const bytes = await project(env, d, f)
+    const bytes = await project(env.DB, d, f)
     return bytes
       ? new Response(bytes, { headers: { 'Content-Type': 'application/octet-stream', 'Cache-Control': 'no-store' } })
       : new Response('No encontrado.', { status: 404 })

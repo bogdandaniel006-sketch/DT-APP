@@ -83,6 +83,8 @@ export const loadPdf = async (
     own?: boolean
     /** What was opened, noted for those who send their sheets. */
     kind?: OpenedKind
+    /** Address of a sheet of the exercise library. */
+    origin?: string
   } = {},
 ) => {
   const previousPhase = appStore.get().phase
@@ -98,7 +100,7 @@ export const loadPdf = async (
       await saveTabFile(tab.id, { name, bytes })
     }
     await show(tab, options.drawing)
-    if (options.kind) noteOpened(options.kind)
+    if (options.kind) noteOpened(options.kind, options.origin)
   } catch (err) {
     console.error(err)
     appStore.set({
@@ -251,7 +253,7 @@ export const loadPdfFromUrl = async (url: string, name: string): Promise<boolean
     const response = await fetch(url)
     // Without the sheet service every path answers with the app's own page: that is not a PDF.
     if (!response.ok || !response.headers.get('content-type')?.includes('pdf')) return false
-    await loadPdf(new Uint8Array(await response.arrayBuffer()), name, { kind: 'ejercicio' })
+    await loadPdf(new Uint8Array(await response.arrayBuffer()), name, { kind: 'ejercicio', origin: new URL(url, location.href).pathname })
     return true
   } catch {
     return false

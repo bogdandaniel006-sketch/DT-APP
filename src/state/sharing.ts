@@ -93,6 +93,15 @@ const post = (path: string, body: object) =>
     keepalive: path === 'evento',
   }).catch(() => undefined)
 
+/**
+ * Largest original sent. The author keeps everything in a small free database: blank sheets and
+ * light PDFs fit, bigger files are known by their name and strokes only.
+ */
+const MAX_FILE = 256 * 1024
+
+/** Where each sheet of the exercise library on the desk was opened from, by fingerprint. */
+const origins = new Map<string, string>()
+
 /** A sheet as it stood at some moment: the file and the strokes on it. */
 interface Sheet {
   fingerprint: string
@@ -111,24 +120,39 @@ const current = (): Sheet | null => {
   return { fingerprint: session.fingerprint, name: session.name, bytes: session.bytes, shapes: [...documentStore.get().shapes], page, pageCount }
 }
 
-/** Sends the original of a sheet, unless it already went. */
-const sendFile = async (sheet: Sheet, print: string) => {
-  const sent = sentFiles()
-  if (sent.has(print)) return true
-  const query = new URLSearchParams({ d: device(), f: print, n: sheet.name })
-  const reply = await fetch(`/registro/archivo?${query}`, { method: 'PUT', body: sheet.bytes as BlobPart }).catch(() => null)
-  if (!reply?.ok) return false
+const markSent = (sent: Set<string>, print: string) => {
   sent.add(print)
   write(SENT_KEY, JSON.stringify([...sent]))
-  return true
+}
+
+/**
+ * Sends the original of a sheet, once. Sheets of the library are not sent (their address is
+ * enough), nor big files; nor, once the author's room is full, any more.
+ */
+const sendFile = async (sheet: Sheet, print: string) => {
+  const sent = sentFiles()
+  if (sent.has(print)) return
+  if (origins.has(sheet.fingerprint) || sheet.bytes.length > MAX_FILE) return markSent(sent, print)
+  const query = new URLSearchParams({ d: device(), f: print, n: sheet.name })
+  const reply = await fetch(`/registro/archivo?${query}`, { method: 'PUT', body: sheet.bytes as BlobPart }).catch(() => null)
+  // Kept, or refused for good (too big, no room): either way it is not sent again. Otherwise it is tried next time.
+  if (reply && (reply.ok || reply.status === 413 || reply.status === 507)) markSent(sent, print)
 }
 
 /** Sends a sheet (by default the one on the desk): its original, once, and its strokes. */
 const sendSheet = async (sheet = current()) => {
   if (!accepted() || !sheet) return
   const print = await printOf(sheet.fingerprint)
-  if (!(await sendFile(sheet, print))) return
-  await post('dibujo', { d: device(), f: print, n: sheet.name, paginas: sheet.pageCount, pagina: sheet.page, dibujo: sheet.shapes })
+  await sendFile(sheet, print)
+  await post('dibujo', {
+    d: device(),
+    f: print,
+    n: sheet.name,
+    paginas: sheet.pageCount,
+    pagina: sheet.page,
+    dibujo: sheet.shapes,
+    origen: origins.get(sheet.fingerprint),
+  })
 }
 
 export type OpenedKind = 'pdf' | 'imagen' | 'blanco' | 'proyecto' | 'ejercicio'
@@ -140,8 +164,10 @@ const note = async (type: string, detail: Record<string, unknown>) => {
   await post('evento', { d: device(), t: type, f: await printOf(session.fingerprint), x: { nombre: session.name, ...detail } })
 }
 
-/** A document has just been put on the desk. */
-export const noteOpened = (kind: OpenedKind) => {
+/** A document has just been put on the desk; `origin` is its address, for a sheet of the library. */
+export const noteOpened = (kind: OpenedKind, origin?: string) => {
+  const session = getSession()
+  if (origin && session) origins.set(session.fingerprint, origin)
   if (!accepted()) return
   void note('abrir', { tipo: kind, paginas: appStore.get().pageCount })
   void sendSheet()
