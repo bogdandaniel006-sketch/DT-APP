@@ -16,6 +16,8 @@ import { add, dot, scale, toRad } from './vec'
 /** Usual spacing of the lining, in millimetres on paper. */
 export const HATCH_SPACING = 2
 export const HATCH_ANGLES = [45, 135] as const
+/** Longest stretch of outline a line is followed through to find where it really ends (desk units, about 25 mm). */
+const MAX_WALL = mmToPt(25)
 
 /** A grid over a page: 1 where there is an outline, 0 where there is paper. */
 export interface Walls {
@@ -137,6 +139,12 @@ export const hatchLines = (walls: Walls, region: Region, angle: number, spacing:
   const tMin = Math.min(...along) - 1
   const tMax = Math.max(...along) + 1
   const step = 0.5 / res
+  /** Whether a desk point is on an outline of the grid (or off it). */
+  const isWall = (p: Vec) => {
+    const x = Math.floor((p.x - origin.x) * res)
+    const y = Math.floor((p.y - origin.y) * res)
+    return x < 0 || y < 0 || x >= walls.w || y >= walls.h || walls.data[y * walls.w + x] === 1
+  }
   /** How far the end of a line may move to meet the real outline. */
   const reach = grow + 2 / res
   const out: [Vec, Vec][] = []
@@ -180,9 +188,19 @@ export const hatchLines = (walls: Walls, region: Region, angle: number, spacing:
       if (prev && !crossings.some((c) => c > prev[1] - reach && c < run[0] + reach) && onlyHalo(prev[1], run[0])) prev[1] = run[1]
       else merged.push([...run])
     }
+    /**
+     * How far the line runs through outline (thickened) from t, in that direction. A line nearly
+     * parallel to an edge crosses its thickening slantwise, over several millimetres, and only
+     * meets the edge itself at the far end: its end is looked for all along that stretch.
+     */
+    const throughWall = (t: number, outwards: number) => {
+      let d = 0
+      while (d < MAX_WALL && isWall(at(t + outwards * (d + step)))) d += step
+      return d + reach
+    }
     merged.forEach(([s, e], i) => {
-      const a = fit(s, -1, i > 0 ? s - merged[i - 1]![1] : reach * 4)
-      const b = fit(e, 1, i < merged.length - 1 ? merged[i + 1]![0] - e : reach * 4)
+      const a = fit(s, -1, i > 0 ? s - merged[i - 1]![1] : throughWall(s, -1))
+      const b = fit(e, 1, i < merged.length - 1 ? merged[i + 1]![0] - e : throughWall(e, 1))
       if (b - a > 1 / res) out.push([at(a), at(b)])
     })
 
