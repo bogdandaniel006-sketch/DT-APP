@@ -6,4 +6,4 @@ Disallow: /registro/
 Disallow: /ejercicios/
 Disallow: /abrir
 
-Sitemap: https://danidemiguel.aldanidaniel12.workers.dev/sitemap.xml
+Sitemap: https://danidemiguel.com/sitemap.xml

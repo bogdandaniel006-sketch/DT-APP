@@ -48,7 +48,7 @@ export const originalOf = (path) => {
 /** Brings a sheet from its site, kept a day in Cloudflare's cache. Null when it is not a PDF. */
 export const fetchSheet = async (original) => {
   const sheet = await fetch(original, {
-    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Lamina; +https://danidemiguel.aldanidaniel12.workers.dev)' },
+    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Lamina; +https://danidemiguel.com)' },
     cf: { cacheEverything: true, cacheTtl: 86400 },
   })
   return sheet.ok && (sheet.headers.get('content-type') ?? '').includes('pdf') ? sheet : null
