@@ -158,17 +158,24 @@ export const createConicTool = (): Tool => {
     hint() {
       switch (type()) {
         case 'ellipse':
-          return ['Elipse: clic en un extremo A del eje mayor', 'Clic en el otro extremo B del eje mayor', 'Clic en un extremo C del eje menor (D es su simétrico)'][pts.length] ?? null
+          return [
+            'Elipse, paso 1 de 3: escoge un punto, que será el extremo A del eje mayor',
+            'Paso 2 de 3: escoge el otro extremo B del eje mayor (el centro O queda en medio)',
+            'Paso 3 de 3: escoge un punto C, extremo del eje menor (D sale simétrico)',
+          ][pts.length] ?? null
         case 'hyperbola':
           return [
-            'Hipérbola: clic en el vértice A',
-            "Clic en el otro vértice A' (eje real)",
-            'Clic en un foco F, por fuera de los vértices',
-            'Clic para fijar hasta dónde llegan las ramas',
+            'Hipérbola, paso 1 de 4: escoge un punto, que será el vértice A',
+            "Paso 2 de 4: escoge el otro vértice A' (entre los dos queda el eje real)",
+            'Paso 3 de 4: escoge un punto, que será el foco F (por fuera de los vértices)',
+            'Paso 4 de 4: mueve el cursor y haz clic para escoger la longitud de las ramas',
           ][pts.length] ?? null
         case 'parabola':
-          if (!directrix) return 'Parábola: selecciona la directriz (una recta)'
-          return ['Clic en el foco F', 'Clic para fijar hasta dónde llega la parábola'][pts.length] ?? null
+          if (!directrix) return 'Parábola, paso 1 de 3: escoge una recta, que será la directriz'
+          return [
+            'Paso 2 de 3: escoge un punto, que será el foco F',
+            'Paso 3 de 3: mueve el cursor y haz clic para escoger la longitud de la parábola',
+          ][pts.length] ?? null
       }
     },
   }
