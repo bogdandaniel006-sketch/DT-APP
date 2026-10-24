@@ -1,5 +1,6 @@
 import { createStore } from '../state/createStore'
 import { createTools } from '.'
+import type { ToolApi } from './types'
 
 /** Single tool instances; their internal state survives re-renders. */
 export const tools = createTools()
@@ -12,3 +13,10 @@ export const cancelAllTools = () => {
   Object.values(tools).forEach((t) => t.cancel())
   bumpTools()
 }
+
+/** The desk's tool API, for steps finished from outside the canvas (a figure typed in). */
+let deskApi: ToolApi | null = null
+export const setDeskApi = (api: ToolApi | null) => {
+  deskApi = api
+}
+export const getDeskApi = () => deskApi

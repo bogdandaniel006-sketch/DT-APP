@@ -3,6 +3,7 @@ import { openPdfDialog } from '../components/TopBar'
 import { duplicateSelection, goToPage } from '../state/actions'
 import { appStore, flipInstrument, setLayer, setTool, viewActions } from '../state/appStore'
 import { documentActions } from '../state/documentStore'
+import { exactPrompt, openExact } from '../state/exact'
 import { bumpTools, tools } from '../tools/registry'
 import { shortcutFor } from '../state/shortcuts'
 
@@ -60,6 +61,11 @@ export const useKeyboard = (enabled: boolean): boolean => {
         return goToPage(appStore.get().page + (e.key === 'PageDown' ? 1 : -1))
       }
       if (e.altKey || e.shiftKey) return
+      // Mid-construction, a digit starts typing an exact figure instead of being a shortcut.
+      if (/^[0-9.,]$/.test(e.key) && exactPrompt()) {
+        e.preventDefault()
+        return openExact(e.key === '.' ? ',' : e.key)
+      }
       const current = appStore.get().tool
       const action = shortcutFor(key)
       if (!action) return

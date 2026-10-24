@@ -1,5 +1,5 @@
 import { EyeOff, FlipVertical2, Pencil as PencilIcon, Ruler, Trash2, X } from 'lucide-react'
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { measurements, shapeName } from '../geometry/shapes'
 import { appStore, flipInstrument, hideInstrument, setTool } from '../state/appStore'
 import { useStore } from '../state/createStore'
@@ -17,6 +17,7 @@ import { dimensionFigure } from '../canvas/dimension'
 import { PENCIL_COLORS } from '../canvas/style'
 import { Popover } from './ui/Popover'
 import { Segmented } from './ui/Segmented'
+import { ExactEntry } from './ExactEntry'
 import { Tooltip } from './ui/Tooltip'
 
 const PENCIL_TOOLS: readonly ToolId[] = ['point', 'text', 'dimension', 'line', 'perpendicular', 'parallel', 'bisector', 'compass', 'arc', 'escuadra', 'cartabon']
@@ -43,6 +44,34 @@ const Divider = () => <div className="h-5 w-px bg-black/[0.07]" />
 
 const SWATCH = 'h-5 w-5 rounded-full outline-none ring-offset-2 transition-transform hover:scale-110 focus-visible:ring-2 focus-visible:ring-accent/60'
 
+/** The colour wheel, for the swatch that opens the picker of any colour. */
+const RAINBOW = 'conic-gradient(#ef4444, #f59e0b, #eab308, #22c55e, #06b6d4, #3b82f6, #8b5cf6, #ec4899, #ef4444)'
+
+/**
+ * Any colour, through the browser's own picker (RGB, hue and saturation, hexadecimal). It is
+ * applied once the picker is closed, so trying colours out leaves a single step to undo.
+ */
+const CustomColor = ({ color, onPick }: { color: string | undefined; onPick: (color: string) => void }) => {
+  const input = useRef<HTMLInputElement>(null)
+  const custom = color && !PENCIL_COLORS.some((c) => c.value.toLowerCase() === color.toLowerCase()) ? color : undefined
+  useEffect(() => {
+    const el = input.current
+    if (!el) return
+    const onChange = () => onPick(el.value.toUpperCase())
+    el.addEventListener('change', onChange)
+    return () => el.removeEventListener('change', onChange)
+  }, [onPick])
+  return (
+    <label
+      title="Otro color"
+      className={`${SWATCH} relative cursor-pointer focus-within:ring-2 focus-within:ring-accent/60 ${custom ? 'ring-2 ring-accent' : ''}`}
+      style={{ background: custom ?? RAINBOW }}
+    >
+      <input ref={input} type="color" aria-label="Otro color" defaultValue={custom ?? '#2563EB'} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
+    </label>
+  )
+}
+
 /** Colour of the stroke, tucked behind a small dot: graphite unless another is picked by hand. */
 const ColorPicker = ({ color, onChange }: { color: string | undefined; onChange: (color: string | undefined) => void }) => (
   <Popover
@@ -62,7 +91,7 @@ const ColorPicker = ({ color, onChange }: { color: string | undefined; onChange:
     )}
   >
     {(close) => (
-      <div className="flex items-center gap-2 px-1.5 py-1">
+      <div className="grid grid-cols-7 gap-2 px-1.5 py-1">
         {[{ value: undefined, label: 'Grafito' }, ...PENCIL_COLORS].map((c) => (
           <button
             key={c.label}
@@ -73,10 +102,17 @@ const ColorPicker = ({ color, onChange }: { color: string | undefined; onChange:
               onChange(c.value)
               close()
             }}
-            className={`${SWATCH} ${c.value === color ? 'ring-2 ring-accent' : ''}`}
+            className={`${SWATCH} ${c.value?.toLowerCase() === color?.toLowerCase() ? 'ring-2 ring-accent' : ''}`}
             style={{ background: c.value ?? GRAPHITE_SWATCH }}
           />
         ))}
+        <CustomColor
+          color={color}
+          onPick={(picked) => {
+            onChange(picked)
+            close()
+          }}
+        />
       </div>
     )}
   </Popover>
@@ -326,15 +362,18 @@ export const ContextBar = () => {
 
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-5 z-20 flex flex-col items-center gap-2">
-      {hint && (
-        <p
-          key={hint}
-          className="animate-pop rounded-full bg-white/85 px-3 py-1 text-[12px] text-muted shadow-[0_2px_10px_rgba(15,23,42,0.06)] backdrop-blur"
-          data-testid="hint"
-        >
-          {hint}
-        </p>
-      )}
+      <div className="flex items-center gap-2">
+        {hint && (
+          <p
+            key={hint}
+            className="animate-pop rounded-full bg-white/85 px-3 py-1 text-[12px] text-muted shadow-[0_2px_10px_rgba(15,23,42,0.06)] backdrop-blur"
+            data-testid="hint"
+          >
+            {hint}
+          </p>
+        )}
+        <ExactEntry />
+      </div>
       {(showSelection || showPencil || measureTool) && (
         <div className="float pointer-events-auto flex items-center gap-3 rounded-2xl px-3 py-2" data-testid="context-bar">
           {showSelection ? (

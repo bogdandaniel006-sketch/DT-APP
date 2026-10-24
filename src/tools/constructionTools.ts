@@ -11,6 +11,7 @@ import {
   type Segment,
 } from '../geometry/primitives'
 import type { SnapKind, SnapResult } from '../geometry/snapping'
+import { mmToPt } from '../geometry/units'
 import { add, dot, scale, sub } from '../geometry/vec'
 import type { Vec } from '../types'
 import { segmentOverlays, snapOverlay } from './overlays'
@@ -59,6 +60,19 @@ export const createPerpendicularTool = (): Tool => {
   }
 
   return {
+    exact() {
+      return base ? { label: 'Longitud', unit: 'mm' } : null
+    },
+    applyExact(mm, api) {
+      if (!base || mm <= 0) return
+      // From its foot on the line (the one fixed, or the cursor's) towards the side the cursor is on.
+      const p = cursor ?? base.b
+      const foot = through ?? projectPointOnLine(p, base.a, base.b)
+      const n = normalOf(base)
+      const side = dot(sub(p, foot), n) < 0 ? -1 : 1
+      api.create([segment(foot, add(foot, scale(n, side * mmToPt(mm))))])
+      reset()
+    },
     down(e, api) {
       if (!base) {
         const picked = pickLine(api, e.world)
@@ -130,8 +144,8 @@ export const createPerpendicularTool = (): Tool => {
     },
     hint() {
       if (!base) return 'Selecciona la recta de referencia'
-      if (through) return 'Clic para fijar la longitud de la perpendicular'
-      return 'Selecciona el punto por el que pasa la perpendicular · el pie se ajusta a los puntos de la recta'
+      if (through) return 'Clic para fijar la longitud de la perpendicular · o escríbela'
+      return 'Selecciona el punto por el que pasa la perpendicular · o escribe su longitud · el pie se ajusta a los puntos de la recta'
     },
   }
 }
@@ -195,6 +209,18 @@ export const createParallelTool = (): Tool => {
   let snap: SnapResult | null = null
 
   return {
+    exact() {
+      return base ? { label: 'Distancia', unit: 'mm' } : null
+    },
+    applyExact(mm, api) {
+      if (!base || mm <= 0) return
+      // At that distance from the line, on the side the cursor is on.
+      const p = cursor ?? base.b
+      const n = normalOf(base)
+      const side = dot(sub(p, projectPointOnLine(p, base.a, base.b)), n) < 0 ? -1 : 1
+      api.create([parallel(base, add(base.a, scale(n, side * mmToPt(mm))))])
+      base = null
+    },
     down(e, api) {
       if (!base) {
         const picked = pickLine(api, e.world)
@@ -236,7 +262,7 @@ export const createParallelTool = (): Tool => {
       return [...out, ...snapOverlay(snap)]
     },
     hint() {
-      return base ? 'Selecciona el punto por el que pasa la paralela' : 'Selecciona la recta de referencia'
+      return base ? 'Selecciona el punto por el que pasa la paralela · o escribe la distancia' : 'Selecciona la recta de referencia'
     },
   }
 }

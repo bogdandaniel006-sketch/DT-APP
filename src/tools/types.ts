@@ -66,7 +66,17 @@ export interface ToolApi {
   create(items: readonly (Drawable & { name?: string; dimension?: boolean })[]): string[]
 }
 
+/** A figure the tool can take typed in at this step, instead of a click. */
+export interface ExactPrompt {
+  label: string
+  unit: 'mm' | '°'
+}
+
 export interface Tool {
+  /** What can be typed now (a length, a radius, an angle), or null when nothing can. */
+  exact?(): ExactPrompt | null
+  /** Finishes the step with the typed figure (millimetres on paper, or degrees), towards the cursor. */
+  applyExact?(value: number, api: ToolApi): void
   down(e: ToolPointer, api: ToolApi): void
   move(e: ToolPointer, api: ToolApi): void
   up(e: ToolPointer, api: ToolApi): void

@@ -11,7 +11,7 @@ import { appStore, viewActions } from '../state/appStore'
 import { useStore } from '../state/createStore'
 import { documentActions, documentStore } from '../state/documentStore'
 import { instrumentHandles } from '../tools/instrumentTool'
-import { bumpTools, toolTick, tools } from '../tools/registry'
+import { bumpTools, setDeskApi, toolTick, tools } from '../tools/registry'
 import type { ToolApi, ToolPointer } from '../tools/types'
 import { isGeometry, isMeasure, isText, type Geometry, type InstrumentKind, type Shape, type Vec } from '../types'
 import { newId } from '../utils/id'
@@ -177,6 +177,12 @@ export const Workspace = ({ spaceDown }: { spaceDown: boolean }) => {
   }, [shapes, geometryShapes, snapShapes, edges, view.scale, pageRects, snapMode, allShapes, detected, strokesNear])
 
   const tool = tools[toolId]
+
+  // A figure typed in finishes a step outside any pointer event: it needs the same API.
+  useEffect(() => {
+    setDeskApi(api)
+    return () => setDeskApi(null)
+  }, [api])
 
   // Switching tools abandons any half-finished construction.
   useEffect(() => {

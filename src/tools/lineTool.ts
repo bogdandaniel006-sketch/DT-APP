@@ -1,7 +1,8 @@
 import { constrainDirection } from '../geometry/angles'
-import { distance } from '../geometry/primitives'
+import { angle, distance } from '../geometry/primitives'
 import type { SnapResult } from '../geometry/snapping'
-import { toRad } from '../geometry/vec'
+import { mmToPt } from '../geometry/units'
+import { add, fromAngle, toRad } from '../geometry/vec'
 import type { Vec } from '../types'
 import { segmentOverlays, snapOverlay } from './overlays'
 import type { Overlay, Tool, ToolApi, ToolPointer } from './types'
@@ -59,6 +60,16 @@ export const createLineTool = (): Tool => {
   }
 
   return {
+    exact() {
+      return start ? { label: 'Longitud', unit: 'mm' } : null
+    },
+    applyExact(mm, api) {
+      if (!start || mm <= 0) return
+      // Along the direction the cursor shows (snapped or locked as it is drawn); rightwards if it shows none.
+      const towards = cursor && distance(start, cursor) > api.px(1) ? angle(start, cursor) : 0
+      cursor = add(start, fromAngle(towards, mmToPt(mm)))
+      finish(api)
+    },
     down(e, api) {
       track(e, api)
       if (!start) {
@@ -95,7 +106,7 @@ export const createLineTool = (): Tool => {
     },
     hint() {
       return start
-        ? 'Clic para fijar el punto final · Shift bloquea el ángulo'
+        ? 'Clic para fijar el punto final · o escribe la longitud · Shift bloquea el ángulo'
         : 'Clic para fijar el punto inicial · dos clics en el mismo sitio crean un punto'
     },
   }

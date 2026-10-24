@@ -1,6 +1,7 @@
 import { angle, arcFromPoints, circleFromCenterRadius, distance, pointOnCircle } from '../geometry/primitives'
 import type { SnapResult } from '../geometry/snapping'
-import { TAU, wrapAngle } from '../geometry/vec'
+import { mmToPt } from '../geometry/units'
+import { TAU, add, toRad, wrapAngle } from '../geometry/vec'
 import { appStore } from '../state/appStore'
 import type { Vec } from '../types'
 import { formatAngle, formatLength } from '../utils/format'
@@ -50,6 +51,32 @@ export const createCompassTool = (mode: 'circle' | 'arc'): Tool => {
   }
 
   return {
+    exact() {
+      sync()
+      if (stage.name === 'radius' && !fixedRadius()) return { label: 'Radio', unit: 'mm' }
+      if (stage.name === 'sweep') return { label: 'Ángulo', unit: '°' }
+      return null
+    },
+    applyExact(value, api) {
+      sync()
+      if (value <= 0) return
+      if (stage.name === 'radius') {
+        const r = mmToPt(value)
+        if (mode === 'circle') return commitCircle(api, stage.center, r)
+        // The arc starts where the cursor points from the centre, as a click there would.
+        const p = cursor && distance(stage.center, cursor) > api.px(1) ? cursor : add(stage.center, { x: 1, y: 0 })
+        stage = startSweep(stage.center, r, p)
+        return
+      }
+      if (stage.name === 'sweep') {
+        const { center, r, start } = stage
+        // Turning the way the cursor has gone so far; a whole turn or more is the circle.
+        const sweep = (stage.sweep < 0 ? -1 : 1) * toRad(Math.min(value, 360))
+        if (Math.abs(sweep) >= TAU - FULL_TURN_TOL) api.create([circleFromCenterRadius(center, r)])
+        else api.create([arcFromPoints(center, pointOnCircle(center, r, start), sweep, r)])
+        stage = { name: 'center' }
+      }
+    },
     down(_e, api) {
       sync()
       const p = cursor
@@ -169,9 +196,9 @@ export const createCompassTool = (mode: 'circle' | 'arc'): Tool => {
           return 'Clic para fijar el centro'
         case 'radius':
           if (fixed) return 'Clic para fijar el inicio del arco'
-          return mode === 'circle' ? 'Clic para fijar el radio' : 'Clic para fijar el radio y el inicio del arco'
+          return mode === 'circle' ? 'Clic para fijar el radio · o escribe el radio' : 'Clic para fijar el radio y el inicio del arco · o escribe el radio'
         case 'sweep':
-          return 'Gira y haz clic para terminar el arco · vuelve al inicio para cerrar la circunferencia'
+          return 'Gira y haz clic para terminar el arco · o escribe el ángulo · vuelve al inicio para cerrar la circunferencia'
       }
     },
   }

@@ -9,13 +9,23 @@ const GRAPHITE: Record<Pencil['hardness'], string> = {
   HB: '#1F2329',
 }
 
-/** Colours a stroke can take instead of graphite. Graphite (no colour) is always the default. */
+/**
+ * Colours a stroke can take instead of graphite, dark enough to read on white paper, in the
+ * order of the rainbow. Graphite (no colour) is always the default; any other can be picked too.
+ */
 export const PENCIL_COLORS: readonly { value: string; label: string }[] = [
   { value: '#DC2626', label: 'Rojo' },
-  { value: '#1D4ED8', label: 'Azul' },
-  { value: '#15803D', label: 'Verde' },
   { value: '#EA580C', label: 'Naranja' },
+  { value: '#CA8A04', label: 'Amarillo' },
+  { value: '#65A30D', label: 'Verde lima' },
+  { value: '#15803D', label: 'Verde' },
+  { value: '#0D9488', label: 'Turquesa' },
+  { value: '#0284C7', label: 'Celeste' },
+  { value: '#1D4ED8', label: 'Azul' },
   { value: '#7C3AED', label: 'Morado' },
+  { value: '#DB2777', label: 'Rosa' },
+  { value: '#92400E', label: 'Marrón' },
+  { value: '#64748B', label: 'Gris' },
 ]
 
 /** Dashed strokes: dash and gap on paper, as drawn by hand for hidden lines. */
