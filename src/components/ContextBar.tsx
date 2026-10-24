@@ -6,7 +6,7 @@ import { useStore } from '../state/createStore'
 import { documentActions, documentStore } from '../state/documentStore'
 import { shortcutLabel, shortcutStore } from '../state/shortcuts'
 import { toolTick, tools } from '../tools/registry'
-import { isGeometry, isText, type Pencil, type PencilHardness, type PencilWidth, type ToolId } from '../types'
+import { isGeometry, isHatch, isText, type Pencil, type PencilHardness, type PencilWidth, type ToolId } from '../types'
 import { distance } from '../geometry/primitives'
 import { pageOffset } from '../geometry/layout'
 import { MAX_TEXT_LENGTH } from '../geometry/text'
@@ -15,6 +15,8 @@ import { MAX_NAME_LENGTH, normalizePointName } from '../utils/pointNames'
 import { formatCoordinate, formatLength } from '../utils/format'
 import { dimensionFigure } from '../canvas/dimension'
 import { PENCIL_COLORS } from '../canvas/style'
+import { HATCH_ANGLES } from '../geometry/hatch'
+import { hatchStore, relineHatches } from '../tools/hatchTool'
 import { Popover } from './ui/Popover'
 import { Segmented } from './ui/Segmented'
 import { ExactEntry } from './ExactEntry'
@@ -264,6 +266,7 @@ const SelectionInfo = ({ ids }: { ids: readonly string[] }) => {
   const first = selected[0]!
   const single = selected.length === 1
   const geometry = selected.filter(isGeometry)
+  const hatches = selected.filter(isHatch)
   const samePencil = geometry.every(
     (s) =>
       s.pencil.width === first.pencil.width &&
@@ -306,6 +309,16 @@ const SelectionInfo = ({ ids }: { ids: readonly string[] }) => {
         </>
       )}
       {info.length > 0 && <Info>{info.join(' · ')}</Info>}
+      {hatches.length > 0 && geometry.length === 0 && (
+        <>
+          <Divider />
+          <HatchOptions angle={hatches[0]!.angle} spacing={hatches[0]!.spacing} onChange={(patch) => void relineHatches(hatches.map((h) => h.id), patch)} />
+          <ColorPicker
+            color={hatches[0]!.pencil.color}
+            onChange={(color) => documentActions.update(hatches.map((h) => h.id), (s) => ({ ...s, pencil: { ...s.pencil, color } }))}
+          />
+        </>
+      )}
       {geometry.length > 0 && (
         <>
           <Divider />
@@ -330,7 +343,28 @@ const SelectionInfo = ({ ids }: { ids: readonly string[] }) => {
   )
 }
 
-const MeasureOptions = ({ tool }: { tool: 'measure-distance' | 'measure-angle' }) => (
+const HATCH_ANGLE_OPTIONS = HATCH_ANGLES.map((a) => ({ value: a, label: `${a}°` }))
+const HATCH_SPACINGS = [
+  { value: 1, label: '1' },
+  { value: 2, label: '2' },
+  { value: 3, label: '3' },
+  { value: 4, label: '4' },
+] as const
+
+/**
+ * Angle and spacing of section lining: for the next areas lined, or for the selected linings,
+ * which are lined again. The standard alternates the angle between adjacent parts.
+ */
+const HatchOptions = ({ angle, spacing, onChange }: { angle: number; spacing: number; onChange: (patch: { angle?: number; spacing?: number }) => void }) => (
+  <div className="flex items-center gap-1.5">
+    <span className="text-[11px] font-medium uppercase tracking-wider text-faint">Rayado</span>
+    <Segmented<number> label="Ángulo" value={angle} options={HATCH_ANGLE_OPTIONS} onChange={(a) => onChange({ angle: a })} />
+    <Segmented<number> label="Separación" value={spacing} options={HATCH_SPACINGS} onChange={(s) => onChange({ spacing: s })} />
+    <span className="text-[12px] text-muted">mm</span>
+  </div>
+)
+
+const MeasureOptions =({ tool }: { tool: 'measure-distance' | 'measure-angle' }) => (
   <Segmented<'measure-distance' | 'measure-angle'>
     label="Medir"
     value={tool}
@@ -356,9 +390,11 @@ export const ContextBar = () => {
   const showSelection = tool === 'select' && selection.length > 0
   const showPencil = PENCIL_TOOLS.includes(tool)
   const measureTool = tool === 'measure-distance' || tool === 'measure-angle' ? tool : null
+  const hatching = tool === 'hatch'
+  const hatch = useStore(hatchStore, (s) => s)
   const instrument = tool === 'escuadra' || tool === 'cartabon' ? tool : null
 
-  if (!hint && !showSelection && !showPencil && !measureTool) return null
+  if (!hint && !showSelection && !showPencil && !measureTool && !hatching) return null
 
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-5 z-20 flex flex-col items-center gap-2">
@@ -374,12 +410,17 @@ export const ContextBar = () => {
         )}
         <ExactEntry />
       </div>
-      {(showSelection || showPencil || measureTool) && (
+      {(showSelection || showPencil || measureTool || hatching) && (
         <div className="float pointer-events-auto flex items-center gap-3 rounded-2xl px-3 py-2" data-testid="context-bar">
           {showSelection ? (
             <SelectionInfo ids={selection} />
           ) : measureTool ? (
             <MeasureOptions tool={measureTool} />
+          ) : hatching ? (
+            <>
+              <HatchOptions angle={hatch.angle} spacing={hatch.spacing} onChange={(patch) => hatchStore.set(patch)} />
+              <ColorPicker color={pencil.color} onChange={(color) => appStore.set({ pencil: { ...pencil, color } })} />
+            </>
           ) : (
             <>
               <PencilPicker pencil={pencil} onChange={(p) => appStore.set({ pencil: p })} />

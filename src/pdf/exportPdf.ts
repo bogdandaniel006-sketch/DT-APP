@@ -5,7 +5,8 @@ import { LAYER_OPACITY, pencilStroke } from '../canvas/style'
 import { pointOnCircle } from '../geometry/primitives'
 import { LINE_HEIGHT, textLines, textSize } from '../geometry/text'
 import { mmToPt } from '../geometry/units'
-import { isGeometry, type GeometryShape, type Shape, type Vec } from '../types'
+import { isGeometry, isHatch, type GeometryShape, type Shape, type Vec } from '../types'
+import { HATCH_WIDTH } from '../canvas/HatchLayer'
 import { baseName, downloadBlob } from '../utils/download'
 import { detectedNear } from './detect'
 import { stamp } from './make'
@@ -39,7 +40,15 @@ export const exportPdf = async (shapes: readonly Shape[]) => {
     }
 
     const strokes = onPage.filter(isGeometry)
+    // Linings first, under the outlines they fill.
+    for (const h of onPage.filter(isHatch)) {
+      const color = hexToRgb(pencilStroke(h.pencil).color)
+      for (const [a, b] of h.lines) {
+        page.drawLine({ start: toPdf(a), end: toPdf(b), thickness: HATCH_WIDTH, color, opacity: LAYER_OPACITY[h.layer] })
+      }
+    }
     for (const s of onPage) {
+      if (isHatch(s)) continue
       const { color, width, dash } = pencilStroke(s.pencil)
       const dashArray = dash ? [...dash] : undefined
       const style = { color: hexToRgb(color), opacity: LAYER_OPACITY[s.layer] }

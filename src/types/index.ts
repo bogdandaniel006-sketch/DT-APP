@@ -21,7 +21,22 @@ export type Measure =
   /** Angle at vertex b, from ray b→a to ray b→c. */
   | { kind: 'angle'; a: Vec; b: Vec; c: Vec }
 
-export type Drawable = Geometry | Measure
+/**
+ * Section lining (rayado de cortes y secciones): thin parallel lines filling a closed area.
+ * The lines are kept as drawn; the seed is a point inside the area, to find it again when the
+ * angle or the spacing is changed.
+ */
+export interface Hatch {
+  kind: 'hatch'
+  seed: Vec
+  /** Slope of the lines on paper, in degrees: 45 rises to the right ("/"), 135 falls ("\"). */
+  angle: number
+  /** Distance between lines, in millimetres on paper. */
+  spacing: number
+  lines: [Vec, Vec][]
+}
+
+export type Drawable = Geometry | Measure | Hatch
 
 export type LayerId = 'construccion' | 'auxiliares' | 'resultado'
 
@@ -67,9 +82,11 @@ export interface NameSpot {
 
 export type GeometryShape = Shape & Geometry
 export type MeasureShape = Shape & Measure
+export type HatchShape = Shape & Hatch
 
 export const isMeasure = (s: Shape): s is MeasureShape => s.kind === 'distance' || s.kind === 'angle'
-export const isGeometry = (s: Shape): s is GeometryShape => !isMeasure(s)
+export const isHatch = (s: Shape): s is HatchShape => s.kind === 'hatch'
+export const isGeometry = (s: Shape): s is GeometryShape => !isMeasure(s) && !isHatch(s)
 /** Written text: drawn and exported, but never something to snap to or build on. */
 export const isText = (s: Shape): boolean => s.kind === 'point' && s.text === true
 
@@ -91,6 +108,7 @@ export type ToolId =
   | 'measure-angle'
   | 'dimension'
   | 'text'
+  | 'hatch'
   | 'eraser'
 
 export type InstrumentKind = 'escuadra' | 'cartabon'

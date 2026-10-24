@@ -70,3 +70,11 @@ export const PointIcon = () => (
     <path d="M13.5 10.5 17 4l3.5 6.5M14.6 8.5h4.8" strokeWidth={1.7} />
   </Icon>
 )
+
+/** Section lining: a cut outline filled with lines at 45°. */
+export const HatchIcon = () => (
+  <Icon>
+    <rect x="4" y="4" width="16" height="16" rx="1.5" />
+    <path d="M4 12 12 4M4 20 20 4M12 20l8-8" strokeWidth={1.5} />
+  </Icon>
+)

@@ -13,13 +13,14 @@ import { documentActions, documentStore } from '../state/documentStore'
 import { instrumentHandles } from '../tools/instrumentTool'
 import { bumpTools, setDeskApi, toolTick, tools } from '../tools/registry'
 import type { ToolApi, ToolPointer } from '../tools/types'
-import { isGeometry, isMeasure, isText, type Geometry, type InstrumentKind, type Shape, type Vec } from '../types'
+import { isGeometry, isHatch, isMeasure, isText, type Geometry, type InstrumentKind, type Shape, type Vec } from '../types'
 import { newId } from '../utils/id'
 import { localPoint } from '../utils/localPoint'
 import { nextPointName } from '../utils/pointNames'
 import { wheelDelta, wheelZoomFactor } from '../utils/wheel'
 import { InstrumentBody } from './InstrumentLayer'
 import { Loupe } from './Loupe'
+import { HatchLayer } from './HatchLayer'
 import { MeasuresLayer } from './MeasuresLayer'
 import { NamePopover } from './NamePopover'
 import { OverlayLayer } from './OverlayLayer'
@@ -71,6 +72,7 @@ export const Workspace = ({ spaceDown }: { spaceDown: boolean }) => {
     [allShapes, hiddenLayers, pageRects, measuresVisible],
   )
   const geometryShapes = useMemo(() => shapes.filter(isGeometry), [shapes])
+  const hatches = useMemo(() => shapes.filter(isHatch), [shapes])
   /** What tools may snap to: the geometry, never written text nor dimension lines. */
   const snapShapes = useMemo(() => geometryShapes.filter((s) => !isText(s) && !s.dimension), [geometryShapes])
   const selection = useMemo(() => new Set(selectionIds), [selectionIds])
@@ -314,6 +316,7 @@ export const Workspace = ({ spaceDown }: { spaceDown: boolean }) => {
       <PdfPages rects={pageRects} fingerprint={fingerprint} view={view} visible={pdfVisible} />
       <svg className="pointer-events-none absolute inset-0 h-full w-full overflow-visible">
         <g transform={`translate(${view.x} ${view.y}) scale(${view.scale})`}>
+          <HatchLayer hatches={hatches} selection={selection} scale={view.scale} />
           <ShapesLayer shapes={geometryShapes} strokesNear={strokesNear} selection={selection} editingId={editingText} scale={view.scale} />
           {INSTRUMENTS.map((k) => (
             <InstrumentBody key={k} kind={k} state={instruments[k]} scale={view.scale} active={toolId === k} />

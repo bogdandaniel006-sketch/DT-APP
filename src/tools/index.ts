@@ -9,6 +9,7 @@ import { createMeasureTool } from './measureTool'
 import { createPointTool } from './pointTool'
 import { createSelectTool } from './selectTool'
 import { createTextTool } from './textTool'
+import { createHatchTool } from './hatchTool'
 import type { Tool } from './types'
 
 export const createTools = (): Record<ToolId, Tool> => ({
@@ -26,6 +27,7 @@ export const createTools = (): Record<ToolId, Tool> => ({
   'measure-angle': createMeasureTool('angle'),
   dimension: createDimensionTool(),
   text: createTextTool(),
+  hatch: createHatchTool(),
   eraser: createEraserTool(),
 })
 

@@ -45,6 +45,8 @@ export const translateGeometry = <G extends Drawable>(g: G, d: Vec): G => {
       return { ...g, c: add(g.c, d) }
     case 'point':
       return { ...g, p: add(g.p, d) }
+    case 'hatch':
+      return { ...g, seed: add(g.seed, d), lines: g.lines.map(([a, b]): [Vec, Vec] => [add(a, d), add(b, d)]) }
   }
   return g
 }
@@ -62,6 +64,8 @@ export const anchorOf = (g: Drawable): Vec => {
       return g.c
     case 'point':
       return g.p
+    case 'hatch':
+      return g.seed
   }
 }
 
@@ -70,10 +74,14 @@ export const measureOutline = (m: Measure): Geometry[] =>
   m.kind === 'distance' ? [segment(m.a, m.b)] : [segment(m.b, m.a), segment(m.b, m.c)]
 
 export const outlineOf = (d: Drawable): Geometry[] =>
-  d.kind === 'distance' || d.kind === 'angle' ? measureOutline(d) : [d]
+  d.kind === 'hatch' ? d.lines.map(([a, b]) => segment(a, b)) : d.kind === 'distance' || d.kind === 'angle' ? measureOutline(d) : [d]
 
-export const distanceToDrawable = (d: Drawable, p: Vec): number =>
-  Math.min(...outlineOf(d).map((g) => distanceToGeometry(g, p)))
+export const distanceToDrawable = (d: Drawable, p: Vec): number => {
+  // A loop rather than a spread: a hatch has many lines.
+  let best = Infinity
+  for (const g of outlineOf(d)) best = Math.min(best, distanceToGeometry(g, p))
+  return best
+}
 
 /** Topmost shape within `tol` of p, preferring points and the closest stroke. */
 export const hitTest = (shapes: readonly Shape[], p: Vec, tol: number, filter?: (s: Shape) => boolean): Shape | null => {
@@ -103,6 +111,7 @@ export const shapeName = (g: Drawable): string =>
     point: 'Punto',
     distance: 'Distancia',
     angle: 'Ángulo',
+    hatch: 'Rayado',
   })[g.kind]
 
 /** Measurements shown when a shape is selected. */
@@ -120,6 +129,8 @@ export const measurements = (g: Drawable): string[] => {
       return [formatAngle(vertexAngle(g.a, g.b, g.c))]
     case 'point':
       return []
+    case 'hatch':
+      return [`${g.angle}°`, `Separación ${String(g.spacing).replace('.', ',')} mm`]
   }
 }
 
@@ -130,12 +141,16 @@ export interface Bounds {
   maxY: number
 }
 
-const boundsOfPoints = (pts: readonly Vec[]): Bounds => ({
-  minX: Math.min(...pts.map((p) => p.x)),
-  minY: Math.min(...pts.map((p) => p.y)),
-  maxX: Math.max(...pts.map((p) => p.x)),
-  maxY: Math.max(...pts.map((p) => p.y)),
-})
+const boundsOfPoints = (pts: readonly Vec[]): Bounds => {
+  const b = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity }
+  for (const p of pts) {
+    b.minX = Math.min(b.minX, p.x)
+    b.minY = Math.min(b.minY, p.y)
+    b.maxX = Math.max(b.maxX, p.x)
+    b.maxY = Math.max(b.maxY, p.y)
+  }
+  return b
+}
 
 export const bounds = (g: Drawable): Bounds => {
   switch (g.kind) {
@@ -149,6 +164,8 @@ export const bounds = (g: Drawable): Bounds => {
       return { minX: g.c.x - g.r, minY: g.c.y - g.r, maxX: g.c.x + g.r, maxY: g.c.y + g.r }
     case 'point':
       return boundsOfPoints([g.p])
+    case 'hatch':
+      return boundsOfPoints(g.lines.length ? g.lines.flat() : [g.seed])
   }
 }
 

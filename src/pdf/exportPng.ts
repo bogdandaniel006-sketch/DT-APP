@@ -4,7 +4,8 @@ import { NAME_SIZE, nameBaseline, nameReach } from '../canvas/pointLabel'
 import { LAYER_OPACITY, pencilStroke } from '../canvas/style'
 import { LINE_HEIGHT, textLines, textSize } from '../geometry/text'
 import { mmToPt } from '../geometry/units'
-import { isGeometry, type GeometryShape, type Shape } from '../types'
+import { isGeometry, isHatch, type GeometryShape, type Shape } from '../types'
+import { HATCH_WIDTH, hatchPath } from '../canvas/HatchLayer'
 import { baseName, downloadBlob } from '../utils/download'
 import { detectedNear } from './detect'
 import { getSession } from './session'
@@ -30,6 +31,17 @@ export const exportPng = async (shapes: readonly Shape[], pageIndex: number, inc
   ctx.lineCap = 'round'
   ctx.lineJoin = 'round'
   const onPage = shapes.filter((s) => s.page === pageIndex).filter(isGeometry)
+  // Linings first, under the outlines they fill.
+  for (const h of shapes) {
+    if (h.page !== pageIndex || !isHatch(h)) continue
+    ctx.globalAlpha = LAYER_OPACITY[h.layer]
+    ctx.setLineDash([])
+    ctx.lineCap = 'butt'
+    ctx.strokeStyle = pencilStroke(h.pencil).color
+    ctx.lineWidth = HATCH_WIDTH
+    ctx.stroke(new Path2D(hatchPath(h)))
+  }
+  ctx.lineCap = 'round'
   for (const s of shapes) {
     // Measures are on-screen annotations, not part of the drawing.
     if (s.page !== pageIndex || !isGeometry(s)) continue
