@@ -13,6 +13,10 @@
 import { panel } from './panel.js'
 import { fetchSheet, originalOf } from './ejercicios.js'
 import { registro } from './registro.js'
+import { slowDown, tooMany } from './limites.js'
+
+/** Largest project opened from a web file (its PDF and strokes, as text). */
+const MAX_PROJECT = 40 * 1024 * 1024
 
 /**
  * A project saved as a web file sends itself here when it is opened from the file explorer.
@@ -21,6 +25,8 @@ import { registro } from './registro.js'
  */
 const openProject = async (request, env) => {
   const home = new URL('/', request.url)
+  if (tooMany(request, 'abrir', 20)) return slowDown()
+  if (Number(request.headers.get('content-length') ?? 0) > MAX_PROJECT) return new Response('El proyecto es demasiado grande.', { status: 413 })
   let data = ''
   try {
     data = String((await request.formData()).get('data') ?? '').replace(/\s+/g, '')
@@ -43,6 +49,7 @@ export default {
     if (pathname === '/panelcreador' || pathname.startsWith('/panelcreador/')) return panel(request, env)
     const original = request.method === 'GET' && pathname.startsWith('/ejercicios/') ? originalOf(pathname.slice(12)) : null
     if (!original) return env.ASSETS.fetch(request)
+    if (tooMany(request, 'ejercicios', 60)) return slowDown()
 
     const sheet = await fetchSheet(original)
     if (!sheet) return new Response('No se ha podido obtener la ficha.', { status: 502 })

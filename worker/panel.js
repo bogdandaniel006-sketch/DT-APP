@@ -1,4 +1,5 @@
 import { fetchSheet, originalOf } from './ejercicios.js'
+import { addressOf } from './limites.js'
 import { DEVICE, ORIGIN, PRINT, tables } from './registro.js'
 
 /**
@@ -15,6 +16,8 @@ import { DEVICE, ORIGIN, PRINT, tables } from './registro.js'
 
 const COOKIE = 'panel'
 const DAYS = 30
+const MAX_TRIES = 5
+const LOCK_MINUTES = 15
 const encoder = new TextEncoder()
 
 const hmac = async (secret, message) => {
@@ -67,14 +70,34 @@ a.btn:hover{background:#dbe6fd}code{font-size:12px;color:var(--muted)}
 .error{color:#dc2626;font-size:13px}.empty{color:var(--muted);padding:8px 0}
 `
 
+const FAILED = {
+  wrong: [401, 'Contraseña incorrecta.'],
+  locked: [429, `Demasiados intentos fallidos. Vuelve a probar dentro de ${LOCK_MINUTES} minutos.`],
+}
+
 const loginPage = (failed) =>
   html(
     `<form class="login" method="post" action="/panelcreador/entrar"><h1>Panel del creador</h1>
 <p class="muted">Solo para el autor de Lámina.</p>
 <input type="password" name="clave" placeholder="Contraseña" autocomplete="current-password" autofocus required>
-${failed ? '<p class="error">Contraseña incorrecta.</p>' : ''}<button>Entrar</button></form>`,
-    failed ? 401 : 200,
+${failed ? `<p class="error">${FAILED[failed][1]}</p>` : ''}<button>Entrar</button></form>`,
+    failed ? FAILED[failed][0] : 200,
   )
+
+/**
+ * Failed passwords, by address: after MAX_TRIES in LOCK_MINUTES that address cannot try again
+ * until they are old, so the password cannot be guessed by trying many.
+ */
+const tries = async (db, ip) => {
+  await db.prepare('CREATE TABLE IF NOT EXISTS intentos (ip TEXT NOT NULL, fecha INTEGER NOT NULL)').run()
+  const since = Date.now() - LOCK_MINUTES * 60 * 1000
+  return (await db.prepare('SELECT COUNT(*) AS n FROM intentos WHERE ip = ?1 AND fecha > ?2').bind(ip, since).first())?.n ?? 0
+}
+const noteFailure = (db, ip) =>
+  db.batch([
+    db.prepare('DELETE FROM intentos WHERE fecha < ?1').bind(Date.now() - LOCK_MINUTES * 60 * 1000),
+    db.prepare('INSERT INTO intentos (ip, fecha) VALUES (?1, ?2)').bind(ip, Date.now()),
+  ])
 
 const when = (ms) =>
   ms ? new Intl.DateTimeFormat('es-ES', { timeZone: 'Europe/Madrid', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(ms)) : '—'
@@ -203,6 +226,8 @@ export const panel = async (request, env) => {
   const rest = pathname.replace(/^\/panelcreador\/?/, '')
 
   if (rest === 'entrar' && request.method === 'POST') {
+    const ip = addressOf(request)
+    if (env.DB && (await tries(env.DB, ip)) >= MAX_TRIES) return loginPage('locked')
     let given = ''
     try {
       given = String((await request.formData()).get('clave') ?? '')
@@ -211,9 +236,11 @@ export const panel = async (request, env) => {
     }
     // Both sides go through the same hash, so the comparison takes the same time whatever was typed.
     if (!same(await hmac(secret, `clave:${given}`), await hmac(secret, `clave:${secret}`))) {
+      if (env.DB) await noteFailure(env.DB, ip)
       await new Promise((r) => setTimeout(r, 800))
-      return loginPage(true)
+      return loginPage('wrong')
     }
+    if (env.DB) await env.DB.prepare('DELETE FROM intentos WHERE ip = ?1').bind(ip).run()
     const expires = Date.now() + DAYS * 24 * 60 * 60 * 1000
     const value = `${expires}.${await hmac(secret, `${COOKIE}:${expires}`)}`
     return new Response(null, {
