@@ -1,0 +1,9 @@
+# Lámina: the app and its privacy page can be indexed. The creator's panel, what the app sends
+# and the exercise sheets of other sites (served here only for the app) cannot.
+User-agent: *
+Disallow: /panelcreador
+Disallow: /registro/
+Disallow: /ejercicios/
+Disallow: /abrir
+
+Sitemap: https://danidemiguel.aldanidaniel12.workers.dev/sitemap.xml
