@@ -1,7 +1,7 @@
-import { angle, closestPoint, closestPointOnArc, pointOnCircle, projectionParam } from '../geometry/primitives'
+import { angle, closestPoint, closestPointOnArc, distance, pointOnCircle, projectionParam } from '../geometry/primitives'
 import { mmToPt } from '../geometry/units'
 import { add, length, lerp, normAngle, scale, sub } from '../geometry/vec'
-import type { Geometry, NameSpot, Vec } from '../types'
+import type { Conic, Geometry, NameSpot, Vec } from '../types'
 
 /** Height of the letters that name points, as on paper. */
 export const NAME_SIZE = mmToPt(2.4)
@@ -96,7 +96,16 @@ export const nameAnchor = (g: Geometry): Vec => {
       return pointOnCircle(g.c, g.r, g.start + g.sweep / 2)
     case 'point':
       return g.p
+    case 'conic':
+      // Along the curve (the first branch), a little past its start: clear of the vertices.
+      return alongConic(g, g.type === 'ellipse' ? 0.12 : 0.85)
   }
+}
+
+/** The point of a conic's first line at fraction t of it. */
+const alongConic = (g: Conic, t: number): Vec => {
+  const path = g.paths[0]!
+  return path[Math.round(clamp01(t) * (path.length - 1))]!
 }
 
 /** How far from the point its name can reach: strokes beyond this cannot be covered by it. */
@@ -147,6 +156,8 @@ const spotAnchor = (g: Geometry, t: number): Vec => {
       return pointOnCircle(g.c, g.r, g.start + g.sweep * clamp01(t))
     case 'point':
       return g.p
+    case 'conic':
+      return alongConic(g, t)
   }
 }
 
@@ -165,6 +176,12 @@ const spotParam = (g: Geometry, p: Vec): number => {
     }
     case 'point':
       return 0
+    case 'conic': {
+      const path = g.paths[0]!
+      let best = 0
+      for (let i = 1; i < path.length; i++) if (distance(path[i]!, p) < distance(path[best]!, p)) best = i
+      return best / (path.length - 1)
+    }
   }
 }
 

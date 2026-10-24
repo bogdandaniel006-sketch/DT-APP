@@ -12,6 +12,28 @@ export type Geometry =
   | { kind: 'circle'; c: Vec; r: number }
   | { kind: 'arc'; c: Vec; r: number; start: number; sweep: number }
   | { kind: 'point'; p: Vec }
+  | Conic
+
+export type ConicType = 'ellipse' | 'hyperbola' | 'parabola'
+
+/**
+ * Ellipse, hyperbola or parabola, as defined in technical drawing. `c` is the centre (the
+ * vertex of a parabola) and `rot` the direction of the main axis (major, real, or towards the
+ * focus). For an ellipse `a` and `b` are the semi-axes; for a hyperbola `a` is the half real
+ * axis and `b` the half imaginary one; for a parabola `a` is the distance from vertex to focus.
+ * The open curves reach `reach` either side of their axis. `paths` is the curve itself, finely
+ * drawn: what is shown, snapped to and exported.
+ */
+export interface Conic {
+  kind: 'conic'
+  type: ConicType
+  c: Vec
+  rot: number
+  a: number
+  b: number
+  reach: number
+  paths: Vec[][]
+}
 
 export type GeometryKind = Geometry['kind']
 
@@ -109,6 +131,7 @@ export type ToolId =
   | 'dimension'
   | 'text'
   | 'hatch'
+  | 'conic'
   | 'eraser'
 
 export type InstrumentKind = 'escuadra' | 'cartabon'

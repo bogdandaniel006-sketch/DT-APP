@@ -3,6 +3,7 @@ import { formatAngle, formatPrecise } from '../utils/format'
 import { horizontalAngle, vertexAngle } from './angles'
 import { arcEndPoint, arcStartPoint, distanceToGeometry, midpoint, distance, segment } from './primitives'
 import { distanceToText, textSize } from './text'
+import { CONIC_NAMES, conicEnds, conicFoci, conicVertices, focalDistance, translateConic } from './conics'
 import { add } from './vec'
 
 export type KeyPointKind = 'endpoint' | 'midpoint' | 'center' | 'point'
@@ -30,6 +31,14 @@ export const keyPoints = (g: Geometry): KeyPoint[] => {
       ]
     case 'point':
       return [{ p: g.p, kind: 'point' }]
+    case 'conic':
+      // Centre, vertices, foci and the ends of open branches: the points constructions start from.
+      return [
+        ...(g.type === 'parabola' ? [] : [{ p: g.c, kind: 'center' as const }]),
+        ...conicVertices(g).map((p) => ({ p, kind: 'endpoint' as const })),
+        ...conicFoci(g).map((p) => ({ p, kind: 'center' as const })),
+        ...conicEnds(g).map((p) => ({ p, kind: 'endpoint' as const })),
+      ]
   }
 }
 
@@ -47,6 +56,8 @@ export const translateGeometry = <G extends Drawable>(g: G, d: Vec): G => {
       return { ...g, p: add(g.p, d) }
     case 'hatch':
       return { ...g, seed: add(g.seed, d), lines: g.lines.map(([a, b]): [Vec, Vec] => [add(a, d), add(b, d)]) }
+    case 'conic':
+      return translateConic(g, d) as G
   }
   return g
 }
@@ -61,6 +72,7 @@ export const anchorOf = (g: Drawable): Vec => {
       return g.b
     case 'circle':
     case 'arc':
+    case 'conic':
       return g.c
     case 'point':
       return g.p
@@ -104,15 +116,17 @@ export const hitTest = (shapes: readonly Shape[], p: Vec, tol: number, filter?: 
 }
 
 export const shapeName = (g: Drawable): string =>
-  ({
-    segment: 'Segmento',
-    circle: 'Circunferencia',
-    arc: 'Arco',
-    point: 'Punto',
-    distance: 'Distancia',
-    angle: 'Ángulo',
-    hatch: 'Rayado',
-  })[g.kind]
+  g.kind === 'conic'
+    ? CONIC_NAMES[g.type]
+    : {
+        segment: 'Segmento',
+        circle: 'Circunferencia',
+        arc: 'Arco',
+        point: 'Punto',
+        distance: 'Distancia',
+        angle: 'Ángulo',
+        hatch: 'Rayado',
+      }[g.kind]
 
 /** Measurements shown when a shape is selected. */
 export const measurements = (g: Drawable): string[] => {
@@ -131,6 +145,11 @@ export const measurements = (g: Drawable): string[] => {
       return []
     case 'hatch':
       return [`${g.angle}°`, `Separación ${String(g.spacing).replace('.', ',')} mm`]
+    case 'conic':
+      // The figures a drawing gives them by: axes and focal distance, or the parameter.
+      // In the notation of the subject: 2a the main axis, 2b the other, 2c the focal distance, p the parameter.
+      if (g.type === 'parabola') return [`p ${formatPrecise(2 * g.a)}`]
+      return [`2a ${formatPrecise(2 * g.a)}`, `2b ${formatPrecise(2 * g.b)}`, `2c ${formatPrecise(2 * focalDistance(g))}`]
   }
 }
 
@@ -166,6 +185,8 @@ export const bounds = (g: Drawable): Bounds => {
       return boundsOfPoints([g.p])
     case 'hatch':
       return boundsOfPoints(g.lines.length ? g.lines.flat() : [g.seed])
+    case 'conic':
+      return boundsOfPoints(g.paths.flat())
   }
 }
 

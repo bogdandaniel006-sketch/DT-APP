@@ -25,6 +25,8 @@ const geometryToScreen = (v: View, g: Geometry): Geometry => {
       return { ...g, c: toScreen(v, g.c), r: g.r * v.scale }
     case 'point':
       return { ...g, p: toScreen(v, g.p) }
+    case 'conic':
+      return { ...g, c: toScreen(v, g.c), a: g.a * v.scale, b: g.b * v.scale, reach: g.reach * v.scale, paths: g.paths.map((path) => path.map((q) => toScreen(v, q))) }
   }
 }
 

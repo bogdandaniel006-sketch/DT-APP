@@ -1,6 +1,7 @@
 import { constrainDirection } from '../geometry/angles'
 import { angle, arcEndPoint, arcStartPoint, circleFromCenterRadius, distance, pointOnCircle } from '../geometry/primitives'
 import { intersection } from '../geometry/intersections'
+import { conicFoci } from '../geometry/conics'
 import { anchorOf, bounds, boundsInside, keyPoints, measurements, outlineOf, translateGeometry } from '../geometry/shapes'
 import { SNAP_RADIUS_PX, type SnapResult } from '../geometry/snapping'
 import { MAX_TEXT_MM, MIN_TEXT_MM, TEXT_ASCENT, textBox, textSize } from '../geometry/text'
@@ -61,6 +62,7 @@ const handlesOf = (s: Shape): { handle: Handle; p: Vec }[] => {
     case 'distance':
     case 'angle':
     case 'hatch':
+    case 'conic':
       return []
   }
 }
@@ -302,6 +304,13 @@ export const createSelectTool = (): Tool => {
           const m = measurements(s)
           out.push({ kind: 'label', at: { x: s.c.x, y: s.c.y - s.r }, text: m.join(' · '), offset: { x: 0, y: -18 } })
           out.push({ kind: 'marker', p: s.c })
+        }
+        if (s.kind === 'conic') {
+          // Its centre (vertex) and foci, and the figures it is given by.
+          const top = bounds(s)
+          out.push({ kind: 'label', at: { x: (top.minX + top.maxX) / 2, y: top.minY }, text: measurements(s).join(' · '), offset: { x: 0, y: -18 } })
+          out.push({ kind: 'marker', p: s.c, label: s.type === 'parabola' ? 'V' : 'O' })
+          conicFoci(s).forEach((f, i) => out.push({ kind: 'marker', p: f, label: s.type === 'parabola' ? 'F' : i ? "F'" : 'F' }))
         }
         if (s.kind === 'arc') {
           // Radii to both ends make the angle of the arc readable, as on paper.

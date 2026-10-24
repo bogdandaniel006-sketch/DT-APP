@@ -34,7 +34,7 @@ const HIT_PX = 7
 const NAME_PICK_PX = 3
 const INSTRUMENTS: InstrumentKind[] = ['escuadra', 'cartabon']
 /** Tools that place points precisely: the loupe follows the cursor with them. */
-const PRECISION_TOOLS = new Set(['select', 'point', 'line', 'perpendicular', 'parallel', 'bisector', 'compass', 'arc', 'dimension', 'measure-distance', 'measure-angle'])
+const PRECISION_TOOLS = new Set(['select', 'point', 'line', 'perpendicular', 'parallel', 'bisector', 'compass', 'arc', 'conic', 'dimension', 'measure-distance', 'measure-angle'])
 
 export const Workspace = ({ spaceDown }: { spaceDown: boolean }) => {
   const container = useRef<HTMLDivElement>(null)

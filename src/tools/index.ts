@@ -9,6 +9,7 @@ import { createMeasureTool } from './measureTool'
 import { createPointTool } from './pointTool'
 import { createSelectTool } from './selectTool'
 import { createTextTool } from './textTool'
+import { createConicTool } from './conicTool'
 import { createHatchTool } from './hatchTool'
 import type { Tool } from './types'
 
@@ -28,7 +29,8 @@ export const createTools = (): Record<ToolId, Tool> => ({
   dimension: createDimensionTool(),
   text: createTextTool(),
   hatch: createHatchTool(),
+  conic: createConicTool(),
   eraser: createEraserTool(),
 })
 
-export const DRAWING_TOOLS: readonly ToolId[] = ['line', 'perpendicular', 'parallel', 'bisector', 'compass', 'arc', 'escuadra', 'cartabon']
+export const DRAWING_TOOLS: readonly ToolId[] = ['line', 'perpendicular', 'parallel', 'bisector', 'compass', 'arc', 'conic', 'escuadra', 'cartabon']

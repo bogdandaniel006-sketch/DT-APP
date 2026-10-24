@@ -1,3 +1,4 @@
+import { closestPointOnConic } from './conics'
 import type { Geometry, Vec } from '../types'
 import { EPS, TAU, add, dot, fromAngle, length, lerp, normAngle, perp, scale, sub } from './vec'
 
@@ -103,6 +104,8 @@ export const closestPoint = (g: Geometry, p: Vec): Vec => {
       return closestPointOnArc(p, g)
     case 'point':
       return g.p
+    case 'conic':
+      return closestPointOnConic(p, g)
   }
 }
 

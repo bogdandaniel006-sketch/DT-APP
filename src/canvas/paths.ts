@@ -21,5 +21,10 @@ export const geometryPath = (g: Geometry, pointRadius = 1.2): string => {
       const sweep = g.sweep > 0 ? 1 : 0
       return `M${n(s.x)} ${n(s.y)}A${n(g.r)} ${n(g.r)} 0 ${large} ${sweep} ${n(e.x)} ${n(e.y)}`
     }
+    case 'conic':
+      // The curve as drawn: one closed line for an ellipse, one or two open ones for the others.
+      return g.paths
+        .map((path) => path.map((q, i) => `${i ? 'L' : 'M'}${n(q.x)} ${n(q.y)}`).join('') + (g.type === 'ellipse' ? 'Z' : ''))
+        .join('')
   }
 }

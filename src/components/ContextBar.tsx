@@ -6,7 +6,7 @@ import { useStore } from '../state/createStore'
 import { documentActions, documentStore } from '../state/documentStore'
 import { shortcutLabel, shortcutStore } from '../state/shortcuts'
 import { toolTick, tools } from '../tools/registry'
-import { isGeometry, isHatch, isText, type Pencil, type PencilHardness, type PencilWidth, type ToolId } from '../types'
+import { isGeometry, isHatch, isText, type ConicType, type Pencil, type PencilHardness, type PencilWidth, type ToolId } from '../types'
 import { distance } from '../geometry/primitives'
 import { pageOffset } from '../geometry/layout'
 import { MAX_TEXT_LENGTH } from '../geometry/text'
@@ -17,12 +17,13 @@ import { dimensionFigure } from '../canvas/dimension'
 import { PENCIL_COLORS } from '../canvas/style'
 import { HATCH_ANGLES } from '../geometry/hatch'
 import { hatchStore, relineHatches } from '../tools/hatchTool'
+import { conicStore } from '../tools/conicTool'
 import { Popover } from './ui/Popover'
 import { Segmented } from './ui/Segmented'
 import { ExactEntry } from './ExactEntry'
 import { Tooltip } from './ui/Tooltip'
 
-const PENCIL_TOOLS: readonly ToolId[] = ['point', 'text', 'dimension', 'line', 'perpendicular', 'parallel', 'bisector', 'compass', 'arc', 'escuadra', 'cartabon']
+const PENCIL_TOOLS: readonly ToolId[] = ['point', 'text', 'dimension', 'line', 'perpendicular', 'parallel', 'bisector', 'compass', 'arc', 'conic', 'escuadra', 'cartabon']
 
 const WIDTHS = [
   { value: 0.25, label: '0,25' },
@@ -343,7 +344,24 @@ const SelectionInfo = ({ ids }: { ids: readonly string[] }) => {
   )
 }
 
-const HATCH_ANGLE_OPTIONS = HATCH_ANGLES.map((a) => ({ value: a, label: `${a}°` }))
+/** Which conic the tool draws: the three share one tool. */
+const ConicOptions = () => {
+  const type = useStore(conicStore, (s) => s.type)
+  return (
+    <Segmented<ConicType>
+      label="Cónica"
+      value={type}
+      options={[
+        { value: 'ellipse', label: 'Elipse' },
+        { value: 'hyperbola', label: 'Hipérbola' },
+        { value: 'parabola', label: 'Parábola' },
+      ]}
+      onChange={(t) => conicStore.set({ type: t })}
+    />
+  )
+}
+
+const HATCH_ANGLE_OPTIONS =HATCH_ANGLES.map((a) => ({ value: a, label: `${a}°` }))
 const HATCH_SPACINGS = [
   { value: 1, label: '1' },
   { value: 2, label: '2' },
@@ -428,6 +446,12 @@ export const ContextBar = () => {
                 <>
                   <Divider />
                   <CompassOptions tool={tool} />
+                </>
+              )}
+              {tool === 'conic' && (
+                <>
+                  <Divider />
+                  <ConicOptions />
                 </>
               )}
               {instrument && (

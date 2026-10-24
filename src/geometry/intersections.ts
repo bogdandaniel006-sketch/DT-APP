@@ -1,4 +1,5 @@
-import type { Geometry, Vec } from '../types'
+import type { Conic, Geometry, Vec } from '../types'
+import { conicSegments } from './conics'
 import { angle, angleInArc, type Arc, type Segment } from './primitives'
 import { EPS, add, cross, dot, length, scale, sub } from './vec'
 
@@ -65,6 +66,15 @@ const onRound = (p: Vec, round: Round) => !round.arc || angleInArc(angle(round.c
 /** All intersection points between two geometries (points are ignored). */
 export const intersection = (g1: Geometry, g2: Geometry): Vec[] => {
   if (g1.kind === 'point' || g2.kind === 'point') return []
+  // A conic is met piece by piece along the fine line it is drawn with.
+  if (g1.kind === 'conic' || g2.kind === 'conic') {
+    const [conic, other] = g1.kind === 'conic' ? [g1, g2] : [g2 as Conic, g1]
+    const found: Vec[] = []
+    for (const piece of conicSegments(conic)) {
+      for (const p of intersection(piece, other)) if (!found.some((q) => Math.hypot(q.x - p.x, q.y - p.y) < 1e-6)) found.push(p)
+    }
+    return found
+  }
   if (g1.kind === 'segment' && g2.kind === 'segment') return segmentSegment(g1, g2)
   if (g1.kind === 'segment' || g2.kind === 'segment') {
     const s = (g1.kind === 'segment' ? g1 : g2) as Segment

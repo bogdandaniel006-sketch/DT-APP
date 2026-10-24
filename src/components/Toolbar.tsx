@@ -5,7 +5,7 @@ import { useStore } from '../state/createStore'
 import { shortcutLabel, shortcutStore, type ShortcutId } from '../state/shortcuts'
 import type { ToolId } from '../types'
 import { LayerMenu } from './LayerMenu'
-import { ArcIcon, BisectorIcon, CartabonIcon, EscuadraIcon, HatchIcon, ParallelIcon, PerpendicularIcon, PointIcon } from './ToolIcons'
+import { ArcIcon, BisectorIcon, CartabonIcon, ConicIcon, EscuadraIcon, HatchIcon, ParallelIcon, PerpendicularIcon, PointIcon } from './ToolIcons'
 import { IconButton } from './ui/IconButton'
 
 interface ToolDef {
@@ -25,6 +25,7 @@ export const TOOLS: readonly ToolDef[] = [
   { id: 'bisector', label: 'Mediatriz', icon: <BisectorIcon /> },
   { id: 'compass', label: 'Compás', icon: <DraftingCompass size={18} /> },
   { id: 'arc', label: 'Arco', icon: <ArcIcon /> },
+  { id: 'conic', label: 'Cónicas: elipse, hipérbola y parábola', icon: <ConicIcon /> },
   { id: 'escuadra', label: 'Escuadra', icon: <EscuadraIcon /> },
   { id: 'cartabon', label: 'Cartabón', icon: <CartabonIcon /> },
   { id: 'measure-distance', label: 'Medir distancia y ángulo', icon: <RulerDimensionLine size={18} /> },

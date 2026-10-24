@@ -78,3 +78,11 @@ export const HatchIcon = () => (
     <path d="M4 12 12 4M4 20 20 4M12 20l8-8" strokeWidth={1.5} />
   </Icon>
 )
+
+/** Conics: an ellipse with its axes. */
+export const ConicIcon = () => (
+  <Icon>
+    <ellipse cx="12" cy="12" rx="9" ry="5.5" />
+    <path d="M3 12h18M12 6.5v11" strokeWidth={1.2} strokeDasharray="2 2" />
+  </Icon>
+)

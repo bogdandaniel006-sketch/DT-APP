@@ -10,6 +10,7 @@ export const SHORTCUT_ACTIONS = [
   { id: 'bisector', label: 'Mediatriz', key: 'd' },
   { id: 'compass', label: 'Compás', key: 'c' },
   { id: 'arc', label: 'Arco', key: 'a' },
+  { id: 'conic', label: 'Cónicas', key: 'o' },
   { id: 'escuadra', label: 'Escuadra', key: 'e' },
   { id: 'cartabon', label: 'Cartabón', key: 't' },
   { id: 'measure-distance', label: 'Medir distancia y ángulo', key: 'm' },

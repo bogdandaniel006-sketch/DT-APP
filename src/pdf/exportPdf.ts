@@ -110,7 +110,23 @@ export const exportPdf = async (shapes: readonly Shape[]) => {
             borderLineCap: LineCapStyle.Round,
             borderDashArray: dashArray,
           })
+          break
         }
+        case 'conic':
+          // Each branch as the fine line it is drawn with; drawSvgPath flips y, so feed it -y.
+          for (const path of s.paths) {
+            const pts = path.map(toPdf)
+            const d = pts.map((p, i) => `${i ? 'L' : 'M'}${p.x} ${-p.y}`).join('') + (s.type === 'ellipse' ? 'Z' : '')
+            page.drawSvgPath(d, {
+              x: 0,
+              y: 0,
+              borderWidth: width,
+              borderColor: style.color,
+              borderOpacity: style.opacity,
+              borderLineCap: LineCapStyle.Round,
+              borderDashArray: dashArray,
+            })
+          }
       }
       if (s.kind === 'segment' && s.dimension) {
         // A dimension: its arrowheads, and its figure written along the line.
