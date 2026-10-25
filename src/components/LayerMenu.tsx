@@ -1,9 +1,8 @@
 import { Check, Eye, EyeOff, Layers, Lock, X } from 'lucide-react'
-import { useState } from 'react'
 import { LAYER_PENCIL, LAYERS } from '../canvas/style'
 import { appStore, setLayer } from '../state/appStore'
 import { shortcutLabel, shortcutStore } from '../state/shortcuts'
-import { useStore } from '../state/createStore'
+import { createStore, useStore } from '../state/createStore'
 import type { LayerId } from '../types'
 import { IconButton } from './ui/IconButton'
 import { Popover } from './ui/Popover'
@@ -35,22 +34,27 @@ const pencilName = (id: LayerId) => {
 }
 
 /** The reminder is closed for as long as the page stays open; every new visit shows it again. */
-let tipClosed = false
+const layerTipStore = createStore<{ open: boolean }>({ open: true })
+const closeLayerTip = () => layerTipStore.set({ open: false })
 
 /**
- * A reminder of how layers work, beside their button each time the app is opened, until closed.
- * Many draw everything on one layer: this tells what each is for and how to switch between them.
+ * A reminder of how layers work, shown as soon as the app is opened (every visit) until closed:
+ * on the start screen at the top left, on the desk beside the layers button. Many draw everything
+ * on one layer: this tells what each is for and how to switch between them.
  */
-const LayerTip = ({ onClose }: { onClose: () => void }) => {
+const LayerTip = ({ onStart = false }: { onStart?: boolean }) => {
   const keys = useStore(shortcutStore, (s) => s.keys)
+  const onClose = closeLayerTip
   return (
     <div
       role="dialog"
       aria-label="Cómo usar las capas"
-      className="float animate-pop absolute bottom-0 left-full z-40 ml-3.5 w-[330px] rounded-2xl p-4 text-left max-sm:fixed max-sm:inset-x-3 max-sm:bottom-28 max-sm:ml-0 max-sm:w-auto"
+      className={`float animate-pop z-40 w-[330px] rounded-2xl p-4 text-left max-sm:fixed max-sm:inset-x-3 max-sm:bottom-28 max-sm:ml-0 max-sm:w-auto ${
+        onStart ? 'fixed left-4 top-4' : 'absolute bottom-0 left-full ml-3.5'
+      }`}
     >
       {/* The point of the bubble, towards the layers button. */}
-      <span className="absolute -left-1.5 bottom-3.5 h-3 w-3 rotate-45 bg-white max-sm:hidden" aria-hidden />
+      {!onStart && <span className="absolute -left-1.5 bottom-3.5 h-3 w-3 rotate-45 bg-white max-sm:hidden" aria-hidden />}
       <div className="flex items-start gap-2">
         <p className="flex-1 text-[14px] font-semibold text-ink">Dibuja cada cosa en su capa</p>
         <button
@@ -79,7 +83,9 @@ const LayerTip = ({ onClose }: { onClose: () => void }) => {
         ))}
       </ul>
       <p className="mt-3 text-[11.5px] leading-snug text-muted">
-        En este botón de capas ves en cuál estás y, con el ojo, puedes ocultar cada una para revisar tu dibujo.
+        {onStart
+          ? 'Las capas están en el último botón de la barra de herramientas, a la izquierda: ahí ves en cuál estás y, con el ojo, puedes ocultar cada una.'
+          : 'En este botón de capas ves en cuál estás y, con el ojo, puedes ocultar cada una para revisar tu dibujo.'}
       </p>
       <button
         type="button"
@@ -92,16 +98,15 @@ const LayerTip = ({ onClose }: { onClose: () => void }) => {
   )
 }
 
+/** The reminder on the start screen, while it has not been closed. */
+export const StartLayerTip = () => (useStore(layerTipStore, (s) => s.open) ? <LayerTip onStart /> : null)
+
 export const LayerMenu = () => {
-  const [tip, setTip] = useState(!tipClosed)
-  const closeTip = () => {
-    tipClosed = true
-    setTip(false)
-  }
+  const tip = useStore(layerTipStore, (s) => s.open)
   return (
     <>
-      <LayerPopover onOpen={closeTip} />
-      {tip && <LayerTip onClose={closeTip} />}
+      <LayerPopover onOpen={closeLayerTip} />
+      {tip && <LayerTip />}
     </>
   )
 }
