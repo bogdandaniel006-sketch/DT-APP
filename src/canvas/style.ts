@@ -31,9 +31,22 @@ export const PENCIL_COLORS: readonly { value: string; label: string }[] = [
 /** Dashed strokes: dash and gap on paper, as drawn by hand for hidden lines. */
 const DASH: readonly [number, number] = [mmToPt(3), mmToPt(1.5)]
 
+/** The black sheet, chosen when making a blank one: drawn on in white. */
+export const SHEET_DARK = '#16181B'
+
+/** Graphite on the black sheet: light, the softer the lead the whiter, as chalk on a board. */
+const GRAPHITE_ON_DARK: Record<Pencil['hardness'], string> = {
+  '2H': '#8E95A1',
+  H: '#BCC2CB',
+  HB: '#F2F4F6',
+}
+
+/** What surrounds letters to keep them readable: the colour of the sheet. */
+export const sheetColor = (dark: boolean) => (dark ? SHEET_DARK : '#FFFFFF')
+
 /** Pencil look: width is the real lead width on paper; the softer the lead, the darker (2H < H < HB). */
-export const pencilStroke = (pencil: Pencil) => ({
-  color: pencil.color ?? GRAPHITE[pencil.hardness],
+export const pencilStroke = (pencil: Pencil, dark = false) => ({
+  color: pencil.color ?? (dark ? GRAPHITE_ON_DARK : GRAPHITE)[pencil.hardness],
   width: mmToPt(pencil.width),
   dash: pencil.dashed ? DASH : null,
 })

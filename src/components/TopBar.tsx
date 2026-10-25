@@ -13,6 +13,7 @@ import { ControlsMenu } from './ControlsMenu'
 import { Credit } from './Credit'
 import { ExercisesButton } from './Exercises'
 import { Logo } from './Logo'
+import { ThemeToggle } from './ThemeToggle'
 import { IconButton } from './ui/IconButton'
 import { MenuItem, Popover } from './ui/Popover'
 import { Tooltip } from './ui/Tooltip'
@@ -284,6 +285,7 @@ export const TopBar = () => {
       </div>
 
       <div className="ml-auto flex items-center gap-0.5">
+        <ThemeToggle className="mr-1" />
         <IconButton label="Deshacer" shortcut="Ctrl Z" disabled={!canUndo} onClick={documentActions.undo}>
           <Undo2 size={18} />
         </IconButton>

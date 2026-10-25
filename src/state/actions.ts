@@ -58,6 +58,7 @@ const show = async (tab: StoredTab, drawing?: Drawing) => {
   appStore.set({
     fileName: tab.name,
     fingerprint: session.fingerprint,
+    darkSheet: session.dark,
     activeTab: tab.id,
     pageCount,
     page,
@@ -146,10 +147,10 @@ const freeName = (base: string) => {
   }
 }
 
-/** A blank sheet to draw freely on, in a tab of its own. */
-export const newBlankSheet = async (format: SheetFormat = 'a4-portrait') => {
+/** A blank sheet to draw freely on, in a tab of its own: white, or black to draw on in white. */
+export const newBlankSheet = async (format: SheetFormat = 'a4-portrait', dark = false) => {
   try {
-    await loadPdf(await blankPdf(format), freeName('Hoja en blanco'), { own: true, kind: 'blanco' })
+    await loadPdf(await blankPdf(format, dark), freeName(dark ? 'Hoja negra' : 'Hoja en blanco'), { own: true, kind: 'blanco' })
   } catch (err) {
     console.error(err)
     appStore.set({ error: 'No se ha podido crear la hoja.' })
@@ -174,6 +175,7 @@ export const addBlankPage = async () => {
     const pageCount = next.doc.numPages
     appStore.set({
       fingerprint: next.fingerprint,
+      darkSheet: next.dark,
       pageCount,
       pageRects: layoutPages(await pageSizes()),
       tabs: appStore.get().tabs.map((t) => (t.id === tab.id ? { ...t, fingerprint: next.fingerprint } : t)),
@@ -240,7 +242,7 @@ export const closeTab = async (id: string) => {
   } else {
     // Leaving the desk first: nothing may be saved under the document that is going away.
     cancelAllTools()
-    appStore.set({ tabs: rest, activeTab: null, fileName: '', fingerprint: '', phase: 'start', error: null, selection: [], naming: null, measuring: false })
+    appStore.set({ tabs: rest, activeTab: null, fileName: '', fingerprint: '', darkSheet: false, phase: 'start', error: null, selection: [], naming: null, measuring: false })
     documentActions.load([])
     rememberTabs()
   }

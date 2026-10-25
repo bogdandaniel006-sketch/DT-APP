@@ -114,7 +114,7 @@ export const SheetPreview = ({ url, name, site, opening, onOpen, onBack }: Props
         ) : (
           <>
             {!doc && <p className="py-16 text-center text-[13px] text-muted">Cargando la vista previa…</p>}
-            <canvas ref={canvas} className="mx-auto block bg-white shadow-[var(--shadow-float)]" style={{ display: doc ? 'block' : 'none' }} />
+            <canvas ref={canvas} className="mx-auto block bg-paper shadow-[var(--shadow-float)]" style={{ display: doc ? 'block' : 'none' }} />
           </>
         )}
       </div>

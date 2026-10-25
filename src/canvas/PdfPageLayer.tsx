@@ -4,6 +4,7 @@ import { getSession } from '../pdf/session'
 import { appStore } from '../state/appStore'
 import { useStore } from '../state/createStore'
 import type { View } from '../types'
+import { sheetColor } from './style'
 
 const MAX_CANVAS_PIXELS = 16_000_000
 const RERENDER_DELAY_MS = 140
@@ -25,6 +26,7 @@ interface PageProps {
  * stays a blank sheet and frees its bitmap.
  */
 const PdfPage = memo(({ index, rect, fingerprint, scale, near, visible }: PageProps) => {
+  const dark = useStore(appStore, (s) => s.darkSheet)
   const holder = useRef<HTMLDivElement>(null)
   const [renderScale, setRenderScale] = useState(scale)
 
@@ -73,8 +75,17 @@ const PdfPage = memo(({ index, rect, fingerprint, scale, near, visible }: PagePr
 
   return (
     <div
-      className="sheet absolute bg-white"
-      style={{ left: rect.x * scale, top: rect.y * scale, width: rect.w * scale, height: rect.h * scale }}
+      className="sheet absolute"
+      // The colour of the sheet, also while the PDF is drawn or hidden: the strokes are made for it.
+      style={{
+        left: rect.x * scale,
+        top: rect.y * scale,
+        width: rect.w * scale,
+        height: rect.h * scale,
+        background: sheetColor(dark),
+        // A black sheet keeps a faint edge, so it stands out from a dark desk.
+        ...(dark && { outline: '1px solid rgba(255, 255, 255, 0.1)' }),
+      }}
       data-page={index}
     >
       <div ref={holder} className="absolute inset-0 transition-opacity duration-200" style={{ opacity: visible ? 1 : 0 }} />

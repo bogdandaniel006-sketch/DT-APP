@@ -57,6 +57,7 @@ export const Workspace = ({ spaceDown }: { spaceDown: boolean }) => {
   /** Text being rewritten: its box replaces it on the sheet meanwhile. */
   const editingText = useStore(appStore, (s) => (s.naming?.text ? s.naming.id : undefined))
   const measuresVisible = useStore(appStore, (s) => s.measuresVisible)
+  const darkSheet = useStore(appStore, (s) => s.darkSheet)
   const detected = useStore(detectionStore, (s) => s.pages)
   useStore(appStore, (s) => s.compassRadius)
   useStore(appStore, (s) => s.measuring)
@@ -316,8 +317,8 @@ export const Workspace = ({ spaceDown }: { spaceDown: boolean }) => {
       <PdfPages rects={pageRects} fingerprint={fingerprint} view={view} visible={pdfVisible} />
       <svg className="pointer-events-none absolute inset-0 h-full w-full overflow-visible">
         <g transform={`translate(${view.x} ${view.y}) scale(${view.scale})`}>
-          <HatchLayer hatches={hatches} selection={selection} scale={view.scale} />
-          <ShapesLayer shapes={geometryShapes} strokesNear={strokesNear} selection={selection} editingId={editingText} scale={view.scale} />
+          <HatchLayer hatches={hatches} selection={selection} scale={view.scale} dark={darkSheet} />
+          <ShapesLayer shapes={geometryShapes} strokesNear={strokesNear} selection={selection} editingId={editingText} scale={view.scale} dark={darkSheet} />
           {INSTRUMENTS.map((k) => (
             <InstrumentBody key={k} kind={k} state={instruments[k]} scale={view.scale} active={toolId === k} />
           ))}

@@ -76,7 +76,8 @@ const buildWalls = async (page: number, outlines: readonly Geometry[]): Promise<
   const w = Math.ceil(rect.w * RES)
   const h = Math.ceil(rect.h * RES)
   const data = new Uint8Array(w * h)
-  if (appStore.get().pdfVisible) {
+  // A black sheet has nothing printed on it: all of it would count as ink.
+  if (appStore.get().pdfVisible && !appStore.get().darkSheet) {
     const ink = await pageInk(page, w, h)
     if (ink) {
       for (let i = 0; i < w * h; i++) {

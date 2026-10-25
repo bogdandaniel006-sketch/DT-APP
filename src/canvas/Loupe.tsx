@@ -4,9 +4,10 @@ import { pageAt, type PageRect } from '../geometry/layout'
 import type { SnapResult } from '../geometry/snapping'
 import { mmToPt } from '../geometry/units'
 import { getSession } from '../pdf/session'
+import { appStore } from '../state/appStore'
 import type { GeometryShape, Vec, View } from '../types'
 import { geometryPath } from './paths'
-import { ACCENT, LAYER_OPACITY, pencilStroke } from './style'
+import { ACCENT, LAYER_OPACITY, pencilStroke, sheetColor } from './style'
 
 const SIZE = 132
 const MAGNIFY = 4
@@ -80,12 +81,12 @@ export const Loupe = ({ cursor, view, rects, shapes, snap, viewport }: Props) =>
     const tx = W / 2 - centre.x * k
     const ty = W / 2 - centre.y * k
     ctx.setTransform(1, 0, 0, 1, 0, 0)
-    ctx.fillStyle = '#f3f4f6'
+    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--color-desk') || '#f3f4f6'
     ctx.fillRect(0, 0, W, W)
 
     if (rect) {
       ctx.setTransform(k, 0, 0, k, tx, ty)
-      ctx.fillStyle = '#ffffff'
+      ctx.fillStyle = sheetColor(appStore.get().darkSheet)
       ctx.fillRect(rect.x, rect.y, rect.w, rect.h)
       const bitmap =
         cache.get(`${fingerprint}:${page}:${pxPerPt}`) ??
@@ -102,7 +103,7 @@ export const Loupe = ({ cursor, view, rects, shapes, snap, viewport }: Props) =>
     ctx.lineCap = 'round'
     ctx.lineJoin = 'round'
     for (const s of shapes) {
-      const { color, width, dash } = pencilStroke(s.pencil)
+      const { color, width, dash } = pencilStroke(s.pencil, appStore.get().darkSheet)
       ctx.globalAlpha = LAYER_OPACITY[s.layer]
       ctx.setLineDash(dash ?? [])
       const path = new Path2D(geometryPath(s, mmToPt(0.5)))

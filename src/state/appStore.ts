@@ -13,6 +13,8 @@ export interface AppState {
   error: string | null
   fileName: string
   fingerprint: string
+  /** The open document is a black sheet made here: drawn on in white. */
+  darkSheet: boolean
   /** Open documents, in the order of their tabs. */
   tabs: readonly StoredTab[]
   /** The tab on the desk. */
@@ -69,6 +71,7 @@ export const appStore = createStore<AppState>({
   error: null,
   fileName: '',
   fingerprint: '',
+  darkSheet: false,
   tabs: [],
   activeTab: null,
   page: 0,

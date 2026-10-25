@@ -97,7 +97,7 @@ export const TextEditor = ({ view }: { view: View }) => {
         top: at.y - size * BASELINE,
         fontSize: size,
         lineHeight: LINE_HEIGHT,
-        color: pencilStroke(editing ? editing.pencil : pencil).color,
+        color: pencilStroke(editing ? editing.pencil : pencil, appStore.get().darkSheet).color,
       }}
     />
   )

@@ -1,4 +1,5 @@
-import type { PDFDocument } from 'pdf-lib'
+import type { PDFDocument, PDFPage } from 'pdf-lib'
+import { SHEET_DARK } from '../canvas/style'
 import { mmToPt } from '../geometry/units'
 
 /**
@@ -31,11 +32,29 @@ export const stamp = async (doc: PDFDocument) => {
   doc.context.trailerInfo.ID = doc.context.obj([id, id])
 }
 
-export const blankPdf = async (format: SheetFormat): Promise<Uint8Array> => {
+/**
+ * Word in the keywords of a black sheet made here. It travels with the file (projects, sessions),
+ * so the sheet is known as black whenever it is opened again.
+ */
+export const DARK_SHEET_MARK = 'lamina-hoja-negra'
+
+/** A page filled with the black of the sheet. */
+const darken = async (page: PDFPage) => {
+  const { rgb } = await import('pdf-lib')
+  const { width, height } = page.getSize()
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(SHEET_DARK.slice(i, i + 2), 16) / 255) as [number, number, number]
+  page.drawRectangle({ x: 0, y: 0, width, height, color: rgb(r, g, b) })
+}
+
+export const blankPdf = async (format: SheetFormat, dark = false): Promise<Uint8Array> => {
   const { PDFDocument } = await import('pdf-lib')
   const doc = await PDFDocument.create()
   const { w, h } = SHEET_SIZES[format]
-  doc.addPage([w, h])
+  const page = doc.addPage([w, h])
+  if (dark) {
+    await darken(page)
+    doc.setKeywords([DARK_SHEET_MARK])
+  }
   await stamp(doc)
   return doc.save()
 }
@@ -47,7 +66,8 @@ export const withBlankPage = async (bytes: Uint8Array): Promise<Uint8Array> => {
   const pages = doc.getPages()
   const last = pages[pages.length - 1]
   const { width, height } = last ? last.getSize() : { width: A4.w, height: A4.h }
-  doc.addPage([width, height])
+  const page = doc.addPage([width, height])
+  if (doc.getKeywords()?.includes(DARK_SHEET_MARK)) await darken(page)
   return doc.save()
 }
 

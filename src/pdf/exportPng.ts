@@ -1,7 +1,7 @@
 import { DIMENSION_SIZE, DIMENSION_WIDTH, dimensionFigure, dimensionParts } from '../canvas/dimension'
 import { geometryPath } from '../canvas/paths'
 import { NAME_SIZE, nameBaseline, nameReach } from '../canvas/pointLabel'
-import { LAYER_OPACITY, pencilStroke } from '../canvas/style'
+import { LAYER_OPACITY, pencilStroke, sheetColor } from '../canvas/style'
 import { LINE_HEIGHT, textLines, textSize } from '../geometry/text'
 import { mmToPt } from '../geometry/units'
 import { isGeometry, isHatch, type GeometryShape, type Shape } from '../types'
@@ -23,7 +23,7 @@ export const exportPng = async (shapes: readonly Shape[], pageIndex: number, inc
   canvas.height = Math.floor(viewport.height)
   const ctx = canvas.getContext('2d')
   if (!ctx) return
-  ctx.fillStyle = '#ffffff'
+  ctx.fillStyle = sheetColor(session.dark)
   ctx.fillRect(0, 0, canvas.width, canvas.height)
   if (includePdf) await page.render({ canvas, viewport }).promise
 
@@ -37,7 +37,7 @@ export const exportPng = async (shapes: readonly Shape[], pageIndex: number, inc
     ctx.globalAlpha = LAYER_OPACITY[h.layer]
     ctx.setLineDash([])
     ctx.lineCap = 'butt'
-    ctx.strokeStyle = pencilStroke(h.pencil).color
+    ctx.strokeStyle = pencilStroke(h.pencil, getSession()?.dark).color
     ctx.lineWidth = HATCH_WIDTH
     ctx.stroke(new Path2D(hatchPath(h)))
   }
@@ -45,7 +45,7 @@ export const exportPng = async (shapes: readonly Shape[], pageIndex: number, inc
   for (const s of shapes) {
     // Measures are on-screen annotations, not part of the drawing.
     if (s.page !== pageIndex || !isGeometry(s)) continue
-    const { color, width, dash } = pencilStroke(s.pencil)
+    const { color, width, dash } = pencilStroke(s.pencil, getSession()?.dark)
     ctx.globalAlpha = LAYER_OPACITY[s.layer]
     ctx.setLineDash(dash ?? [])
     const path = new Path2D(geometryPath(s, mmToPt(0.5)))

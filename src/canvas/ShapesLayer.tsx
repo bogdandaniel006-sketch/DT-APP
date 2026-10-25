@@ -5,7 +5,7 @@ import type { Geometry, GeometryShape, Vec } from '../types'
 import { ARROW_LENGTH, DIMENSION_SIZE, DIMENSION_WIDTH, dimensionFigure, dimensionParts } from './dimension'
 import { geometryPath } from './paths'
 import { MIN_NAME_PX, NAME_SIZE, nameBaseline, nameReach } from './pointLabel'
-import { ACCENT, LAYER_OPACITY, pencilStroke } from './style'
+import { ACCENT, LAYER_OPACITY, pencilStroke, sheetColor } from './style'
 
 /** Strokes never get thinner than this on screen, so zoomed-out drawings stay legible. */
 const MIN_SCREEN_WIDTH = 0.75
@@ -21,16 +21,18 @@ interface Props {
   /** Text being rewritten in its box, which is not drawn meanwhile. */
   editingId?: string
   scale: number
+  /** Drawing on the black sheet: light graphite, letters edged in black. */
+  dark: boolean
 }
 
-/** Letters on the desk: a white edge keeps them readable over whatever lies beneath. */
-const Letters = ({ at, size, fill, children }: { at: Vec; size: number; fill: string; children: string }) => (
+/** Letters on the desk: an edge of the colour of the sheet keeps them readable over whatever lies beneath. */
+const Letters = ({ at, size, fill, edge, children }: { at: Vec; size: number; fill: string; edge: string; children: string }) => (
   <text
     x={at.x}
     y={at.y}
     fontSize={size}
     fill={fill}
-    stroke="white"
+    stroke={edge}
     strokeWidth={size * 0.18}
     paintOrder="stroke"
     className="point-name"
@@ -40,10 +42,11 @@ const Letters = ({ at, size, fill, children }: { at: Vec; size: number; fill: st
   </text>
 )
 
-export const ShapesLayer = memo(({ shapes, strokesNear, selection, editingId, scale }: Props) => (
+export const ShapesLayer = memo(({ shapes, strokesNear, selection, editingId, scale, dark }: Props) => (
   <g strokeLinecap="round" strokeLinejoin="round" fill="none">
     {shapes.map((s) => {
-      const { color, width, dash } = pencilStroke(s.pencil)
+      const { color, width, dash } = pencilStroke(s.pencil, dark)
+      const edge = sheetColor(dark)
       const selected = selection.has(s.id)
       const stroke = selected ? ACCENT : color
       const opacity = selected ? 1 : LAYER_OPACITY[s.layer]
@@ -64,7 +67,7 @@ export const ShapesLayer = memo(({ shapes, strokesNear, selection, editingId, sc
             y={s.p.y}
             fontSize={size}
             fill={stroke}
-            stroke="white"
+            stroke={edge}
             strokeWidth={size * 0.12}
             paintOrder="stroke"
             className="point-name"
@@ -83,7 +86,7 @@ export const ShapesLayer = memo(({ shapes, strokesNear, selection, editingId, sc
           <g key={s.id} opacity={opacity}>
             <path d={geometryPath(s, Math.max(POINT_RADIUS, 1.6 / scale))} fill={stroke} />
             {s.name && (
-              <Letters at={nameAt(s, s.name)} size={nameSize} fill={stroke}>
+              <Letters at={nameAt(s, s.name)} size={nameSize} fill={stroke} edge={edge}>
                 {s.name}
               </Letters>
             )}
@@ -112,7 +115,7 @@ export const ShapesLayer = memo(({ shapes, strokesNear, selection, editingId, sc
               textAnchor="middle"
               transform={`rotate(${(angle * 180) / Math.PI} ${figureAt.x} ${figureAt.y})`}
               fill={stroke}
-              stroke="white"
+              stroke={edge}
               strokeWidth={figureSize * 0.18}
               paintOrder="stroke"
               className="point-name"
@@ -131,7 +134,7 @@ export const ShapesLayer = memo(({ shapes, strokesNear, selection, editingId, sc
             strokeDasharray={dash?.join(' ')}
           />
           {s.name && (
-            <Letters at={nameAt(s, s.name)} size={nameSize} fill={stroke}>
+            <Letters at={nameAt(s, s.name)} size={nameSize} fill={stroke} edge={edge}>
               {s.name}
             </Letters>
           )}

@@ -1,4 +1,5 @@
 import { File, FolderOpen, Plus, X } from 'lucide-react'
+import { useState } from 'react'
 import type { SheetFormat } from '../pdf/make'
 import { activateTab, closeTab, newBlankSheet } from '../state/actions'
 import { appStore } from '../state/appStore'
@@ -6,6 +7,7 @@ import { useStore } from '../state/createStore'
 import { baseName } from '../utils/download'
 import { openPdfDialog } from './TopBar'
 import { MenuItem, Popover } from './ui/Popover'
+import { Segmented } from './ui/Segmented'
 import { Tooltip } from './ui/Tooltip'
 
 export const BLANK_SHEETS: { format: SheetFormat; label: string; hint: string }[] = [
@@ -13,6 +15,39 @@ export const BLANK_SHEETS: { format: SheetFormat; label: string; hint: string }[
   { format: 'a4-landscape', label: 'Hoja en blanco', hint: 'A4 horizontal' },
   { format: 'a3-landscape', label: 'Hoja en blanco', hint: 'A3 horizontal' },
 ]
+
+/** The blank sheets of the new-tab menu: white, unless black is picked for that one. */
+const BlankSheets = ({ close }: { close: () => void }) => {
+  const [dark, setDark] = useState(false)
+  return (
+    <>
+      <div className="flex items-center justify-between gap-2 px-2.5 pb-1.5 pt-1">
+        <span className="text-[11px] font-medium uppercase tracking-wider text-faint">Hoja</span>
+        <Segmented<'blanca' | 'negra'>
+          label="Color de la hoja"
+          value={dark ? 'negra' : 'blanca'}
+          options={[
+            { value: 'blanca', label: 'Blanca' },
+            { value: 'negra', label: 'Negra' },
+          ]}
+          onChange={(v) => setDark(v === 'negra')}
+        />
+      </div>
+      {BLANK_SHEETS.map((s) => (
+        <MenuItem
+          key={s.format}
+          icon={<File size={16} className={dark ? 'fill-current' : ''} />}
+          label={dark ? 'Hoja negra' : s.label}
+          hint={s.hint}
+          onSelect={() => {
+            close()
+            void newBlankSheet(s.format, dark)
+          }}
+        />
+      ))}
+    </>
+  )
+}
 
 /** The open documents, one tab each, and the way to open one more. They stay open until closed. */
 export const TabBar = () => {
@@ -76,18 +111,7 @@ export const TabBar = () => {
       >
         {(close) => (
           <div className="w-60">
-            {BLANK_SHEETS.map((s) => (
-              <MenuItem
-                key={s.format}
-                icon={<File size={16} />}
-                label={s.label}
-                hint={s.hint}
-                onSelect={() => {
-                  close()
-                  void newBlankSheet(s.format)
-                }}
-              />
-            ))}
+            <BlankSheets close={close} />
             <div className="mx-2 my-1 h-px bg-black/[0.06]" />
             <MenuItem
               icon={<FolderOpen size={16} />}

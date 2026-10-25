@@ -45,7 +45,7 @@ const GRAPHITE_SWATCH = '#1F2329'
 
 const Divider = () => <div className="h-5 w-px bg-black/[0.07]" />
 
-const SWATCH = 'h-5 w-5 rounded-full outline-none ring-offset-2 transition-transform hover:scale-110 focus-visible:ring-2 focus-visible:ring-accent/60'
+const SWATCH = 'h-5 w-5 rounded-full outline-none ring-offset-2 ring-offset-white transition-transform hover:scale-110 focus-visible:ring-2 focus-visible:ring-accent/60'
 
 /** The colour wheel, for the swatch that opens the picker of any colour. */
 const RAINBOW = 'conic-gradient(#ef4444, #f59e0b, #eab308, #22c55e, #06b6d4, #3b82f6, #8b5cf6, #ec4899, #ef4444)'
@@ -88,7 +88,7 @@ const ColorPicker = ({ color, onChange }: { color: string | undefined; onChange:
           onClick={toggle}
           className="grid h-7 w-7 place-items-center rounded-lg outline-none transition-colors hover:bg-black/[0.04] focus-visible:ring-2 focus-visible:ring-accent/40"
         >
-          <span className="h-3.5 w-3.5 rounded-full" style={{ background: color ?? GRAPHITE_SWATCH }} />
+          <span className={`h-3.5 w-3.5 rounded-full ${color ? '' : 'dark:shadow-[0_0_0_1px_rgba(255,255,255,0.3)]'}`} style={{ background: color ?? GRAPHITE_SWATCH }} />
         </button>
       </Tooltip>
     )}
@@ -105,7 +105,7 @@ const ColorPicker = ({ color, onChange }: { color: string | undefined; onChange:
               onChange(c.value)
               close()
             }}
-            className={`${SWATCH} ${c.value?.toLowerCase() === color?.toLowerCase() ? 'ring-2 ring-accent' : ''}`}
+            className={`${SWATCH} ${c.value ? '' : 'dark:shadow-[0_0_0_1px_rgba(255,255,255,0.25)]'} ${c.value?.toLowerCase() === color?.toLowerCase() ? 'ring-2 ring-accent' : ''}`}
             style={{ background: c.value ?? GRAPHITE_SWATCH }}
           />
         ))}

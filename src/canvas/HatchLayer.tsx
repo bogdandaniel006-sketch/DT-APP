@@ -12,7 +12,7 @@ const MIN_SCREEN_WIDTH = 0.6
 export const hatchPath = (h: HatchShape) => h.lines.map(([a, b]) => `M${a.x.toFixed(2)} ${a.y.toFixed(2)}L${b.x.toFixed(2)} ${b.y.toFixed(2)}`).join('')
 
 /** Linings, under the strokes so that the outlines stay on top of them. */
-export const HatchLayer = memo(({ hatches, selection, scale }: { hatches: readonly HatchShape[]; selection: ReadonlySet<string>; scale: number }) => (
+export const HatchLayer = memo(({ hatches, selection, scale, dark }: { hatches: readonly HatchShape[]; selection: ReadonlySet<string>; scale: number; dark: boolean }) => (
   <g fill="none" strokeLinecap="butt">
     {hatches.map((h) => {
       const selected = selection.has(h.id)
@@ -20,7 +20,7 @@ export const HatchLayer = memo(({ hatches, selection, scale }: { hatches: readon
         <path
           key={h.id}
           d={hatchPath(h)}
-          stroke={selected ? ACCENT : pencilStroke(h.pencil).color}
+          stroke={selected ? ACCENT : pencilStroke(h.pencil, dark).color}
           strokeWidth={Math.max(HATCH_WIDTH, MIN_SCREEN_WIDTH / scale)}
           opacity={selected ? 1 : LAYER_OPACITY[h.layer]}
         />
