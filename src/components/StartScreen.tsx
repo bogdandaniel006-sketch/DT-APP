@@ -6,7 +6,6 @@ import { reviewSharing } from '../state/sharing'
 import { baseName } from '../utils/download'
 import { Credit } from './Credit'
 import { ExercisesButton } from './Exercises'
-import { StartLayerTip } from './LayerMenu'
 import { ThemeToggle } from './ThemeToggle'
 import { openPdfDialog } from './TopBar'
 import { Tooltip } from './ui/Tooltip'
@@ -36,7 +35,6 @@ export const StartScreen = () => {
   return (
     <main className="desk relative flex h-full flex-col items-center justify-center px-6">
       <ThemeToggle className="absolute right-3 top-3" />
-      <StartLayerTip />
       <div className="flex flex-col items-center text-center animate-pop">
         <Illustration />
         <h1 className="text-[30px] font-semibold tracking-[-0.025em] text-ink">Tu mesa de dibujo técnico</h1>
