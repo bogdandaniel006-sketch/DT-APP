@@ -1,4 +1,7 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+
+/** Room kept between a menu and the edge of the window. */
+const EDGE = 8
 
 interface Props {
   trigger: (props: { open: boolean; toggle: () => void }) => ReactNode
@@ -11,6 +14,28 @@ interface Props {
 export const Popover = ({ trigger, children, align = 'left', side = 'bottom' }: Props) => {
   const [open, setOpen] = useState(false)
   const root = useRef<HTMLDivElement>(null)
+  const menu = useRef<HTMLDivElement>(null)
+  // How far the menu is moved sideways to stay inside the window: near an edge it opens the other way.
+  const [shift, setShift] = useState(0)
+
+  useLayoutEffect(() => {
+    if (!open) return setShift(0)
+    const el = menu.current
+    if (!el) return
+    const place = () => {
+      // Measured where it would be unmoved.
+      const moved = parseFloat(el.style.translate) || 0
+      // By its centre and its own width: the opening animation scales it a little meanwhile.
+      const box = el.getBoundingClientRect()
+      const left = (box.left + box.right) / 2 - el.offsetWidth / 2 - moved
+      const over = left + el.offsetWidth - (window.innerWidth - EDGE)
+      const under = EDGE - left
+      setShift(over > 0 ? Math.max(-over, under) : Math.max(under, 0))
+    }
+    place()
+    window.addEventListener('resize', place)
+    return () => window.removeEventListener('resize', place)
+  }, [open])
 
   useEffect(() => {
     if (!open) return
@@ -38,7 +63,9 @@ export const Popover = ({ trigger, children, align = 'left', side = 'bottom' }: 
       {trigger({ open, toggle: () => setOpen((o) => !o) })}
       {open && (
         <div
+          ref={menu}
           role="menu"
+          style={{ translate: shift ? `${shift}px 0` : undefined }}
           className={`animate-pop absolute z-40 min-w-48 rounded-xl bg-white p-1.5 shadow-[0_10px_36px_rgba(15,23,42,0.14)] ${position}`}
         >
           {children(() => setOpen(false))}
