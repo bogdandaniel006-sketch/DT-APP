@@ -17,6 +17,7 @@ import { isGeometry, isHatch, isMeasure, isText, type Geometry, type InstrumentK
 import { newId } from '../utils/id'
 import { localPoint } from '../utils/localPoint'
 import { nextPointName } from '../utils/pointNames'
+import { touchDevice } from '../utils/device'
 import { wheelDelta, wheelZoomFactor } from '../utils/wheel'
 import { InstrumentBody } from './InstrumentLayer'
 import { Loupe } from './Loupe'
@@ -33,6 +34,13 @@ const HIT_PX = 7
 /** Names are picked a little beyond their letters, so that small ones are easy to grab. */
 const NAME_PICK_PX = 3
 const INSTRUMENTS: InstrumentKind[] = ['escuadra', 'cartabon']
+/** How long a first finger waits before drawing, in case a second one comes to zoom or move. */
+const TOUCH_WAIT_MS = 110
+/** A finger moving this far (screen pixels) draws at once. */
+const TOUCH_SLOP_PX = 10
+/** A tap of two or three fingers: short, and the fingers hardly move. */
+const TAP_MS = 300
+const TAP_SLOP_PX = 14
 /** Tools that place points precisely: the loupe follows the cursor with them. */
 const PRECISION_TOOLS = new Set(['select', 'point', 'line', 'perpendicular', 'parallel', 'bisector', 'compass', 'arc', 'conic', 'dimension', 'measure-distance', 'measure-angle'])
 
@@ -74,8 +82,8 @@ export const Workspace = ({ spaceDown }: { spaceDown: boolean }) => {
   )
   const geometryShapes = useMemo(() => shapes.filter(isGeometry), [shapes])
   const hatches = useMemo(() => shapes.filter(isHatch), [shapes])
-  /** What tools may snap to: the geometry, never written text nor dimension lines. */
-  const snapShapes = useMemo(() => geometryShapes.filter((s) => !isText(s) && !s.dimension), [geometryShapes])
+  /** What tools may snap to: the geometry, never written text, dimension lines nor freehand strokes. */
+  const snapShapes = useMemo(() => geometryShapes.filter((s) => !isText(s) && !s.dimension && s.kind !== 'stroke'), [geometryShapes])
   const selection = useMemo(() => new Set(selectionIds), [selectionIds])
   /** Strokes around a point, drawn or of the PDF: the names of points keep clear of them. */
   const strokesNear = useCallback(
@@ -236,7 +244,153 @@ export const Workspace = ({ spaceDown }: { spaceDown: boolean }) => {
     [view],
   )
 
+  // ── Fingers (phones and tablets, see utils/device): one draws, two or more move the sheet. ──
+  /** Fingers on the screen, where they are (window coordinates). */
+  const touches = useRef(new Map<number, Vec>())
+  /** A first finger not yet handed to the tool: a second one may still come, to zoom or move. */
+  const held = useRef<{ id: number; down: ToolPointer; moves: ToolPointer[]; start: Vec; timer: ReturnType<typeof setTimeout> } | null>(null)
+  /** The finger the tool follows. */
+  const drawing = useRef<number | null>(null)
+  /** Two or more fingers: moving and zooming the sheet, or a tap that undoes or redoes. */
+  const gesture = useRef<{ centre: Vec; spread: number; start: number; travel: number; most: number } | null>(null)
+  /** A pen is on the screen: the hand resting on it does not draw. */
+  const penDown = useRef(false)
+  const [flash, setFlash] = useState<string | null>(null)
+  // Timers hand the finger over later: they must reach the tool and the API of that moment.
+  const latest = useRef({ tool: tools[toolId], api })
+  latest.current = { tool: tools[toolId], api }
+
+  const say = (text: string) => {
+    setFlash(text)
+    setTimeout(() => setFlash((f) => (f === text ? null : f)), 900)
+  }
+
+  /** The held finger starts drawing, with what it did meanwhile. */
+  const handOver = () => {
+    const h = held.current
+    if (!h) return
+    clearTimeout(h.timer)
+    held.current = null
+    drawing.current = h.id
+    const { tool: t, api: a } = latest.current
+    t.down(h.down, a)
+    for (const m of h.moves) t.move(m, a)
+    bumpTools()
+  }
+
+  const fingers = () => {
+    const pts = [...touches.current.values()]
+    const centre = { x: pts.reduce((s, p) => s + p.x, 0) / pts.length, y: pts.reduce((s, p) => s + p.y, 0) / pts.length }
+    const spread = pts.length === 2 ? Math.hypot(pts[0]!.x - pts[1]!.x, pts[0]!.y - pts[1]!.y) : 0
+    return { centre, spread }
+  }
+
+  /** A second finger: the drawing gives way to moving the sheet. */
+  const startGesture = () => {
+    if (held.current) {
+      clearTimeout(held.current.timer)
+      held.current = null
+    }
+    if (drawing.current !== null) {
+      // The first finger had already begun: what it started is dropped, as with Esc.
+      documentActions.cancelGesture()
+      tool.cancel()
+      drawing.current = null
+      bumpTools()
+    }
+    lastPointer.current = null
+    setCursorAt(null)
+    const { centre, spread } = fingers()
+    const g = gesture.current
+    gesture.current = g ? { ...g, centre, spread, most: Math.max(g.most, touches.current.size) } : { centre, spread, start: performance.now(), travel: 0, most: touches.current.size }
+  }
+
+  const moveGesture = () => {
+    const g = gesture.current
+    if (!g || !container.current) return
+    const { centre, spread } = fingers()
+    viewActions.pan(centre.x - g.centre.x, centre.y - g.centre.y)
+    g.travel += Math.hypot(centre.x - g.centre.x, centre.y - g.centre.y)
+    // Pinching zooms around the fingers; three or more only move the sheet.
+    if (spread > 0 && g.spread > 0) {
+      const box = container.current.getBoundingClientRect()
+      viewActions.zoomAt({ x: centre.x - box.left, y: centre.y - box.top }, spread / g.spread)
+      g.travel += Math.abs(spread - g.spread)
+    }
+    g.centre = centre
+    g.spread = spread
+  }
+
+  const touchDown = (e: ReactPointerEvent) => {
+    container.current?.setPointerCapture(e.pointerId)
+    // A hand resting on the screen while the pen draws.
+    if (penDown.current) return
+    touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    if (appStore.get().naming) appStore.set({ naming: null })
+    if (touches.current.size === 1 && !gesture.current) {
+      held.current = { id: e.pointerId, down: pointer(e), moves: [], start: { x: e.clientX, y: e.clientY }, timer: setTimeout(handOver, TOUCH_WAIT_MS) }
+      return
+    }
+    startGesture()
+  }
+
+  const touchMove = (e: ReactPointerEvent) => {
+    if (!touches.current.has(e.pointerId)) return
+    touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    if (gesture.current) return moveGesture()
+    const h = held.current
+    if (h?.id === e.pointerId) {
+      h.moves.push(pointer(e))
+      if (Math.hypot(e.clientX - h.start.x, e.clientY - h.start.y) > TOUCH_SLOP_PX) handOver()
+      return
+    }
+    if (drawing.current !== e.pointerId) return
+    const p = pointer(e)
+    lastPointer.current = p
+    setCursorAt(p.screen)
+    tool.move(p, api)
+    bumpTools()
+  }
+
+  const touchUp = (e: ReactPointerEvent) => {
+    if (container.current?.hasPointerCapture(e.pointerId)) container.current.releasePointerCapture(e.pointerId)
+    if (!touches.current.delete(e.pointerId)) return
+    const g = gesture.current
+    if (g) {
+      if (touches.current.size) {
+        // Some fingers stay: they go on moving the sheet from where they are.
+        const { centre, spread } = fingers()
+        g.centre = centre
+        g.spread = spread
+        return
+      }
+      gesture.current = null
+      // A quick tap: two fingers undo, three redo.
+      if (g.travel < TAP_SLOP_PX && performance.now() - g.start < TAP_MS) {
+        if (g.most === 2) {
+          documentActions.undo()
+          say('Deshecho')
+        } else {
+          documentActions.redo()
+          say('Rehecho')
+        }
+        appStore.set({ selection: [] })
+      }
+      return
+    }
+    // A tap too short to have been handed over yet.
+    if (held.current?.id === e.pointerId) handOver()
+    if (drawing.current !== e.pointerId) return
+    drawing.current = null
+    lastPointer.current = null
+    setCursorAt(null)
+    tool.up(pointer(e), api)
+    bumpTools()
+  }
+
   const onPointerDown = (e: ReactPointerEvent) => {
+    if (touchDevice && e.pointerType === 'touch') return touchDown(e)
+    if (e.pointerType === 'pen') penDown.current = true
     container.current?.setPointerCapture(e.pointerId)
     if (appStore.get().naming) appStore.set({ naming: null })
     if (e.button === 1 || (e.button === 0 && spaceDown)) {
@@ -266,6 +420,7 @@ export const Workspace = ({ spaceDown }: { spaceDown: boolean }) => {
   }, [view])
 
   const onPointerMove = (e: ReactPointerEvent) => {
+    if (touchDevice && e.pointerType === 'touch') return touchMove(e)
     lastPointer.current = pointer(e)
     if (pan.current) {
       viewActions.pan(e.clientX - pan.current.last.x, e.clientY - pan.current.last.y)
@@ -279,6 +434,8 @@ export const Workspace = ({ spaceDown }: { spaceDown: boolean }) => {
   }
 
   const onPointerUp = (e: ReactPointerEvent) => {
+    if (touchDevice && e.pointerType === 'touch') return touchUp(e)
+    if (e.pointerType === 'pen') penDown.current = false
     if (container.current?.hasPointerCapture(e.pointerId)) container.current.releasePointerCapture(e.pointerId)
     if (pan.current) {
       pan.current = null
@@ -338,6 +495,11 @@ export const Workspace = ({ spaceDown }: { spaceDown: boolean }) => {
       )}
       <NamePopover view={view} />
       <TextEditor view={view} />
+      {flash && (
+        <div className="float animate-pop pointer-events-none absolute left-1/2 top-4 z-40 -translate-x-1/2 rounded-full px-3.5 py-1.5 text-[12.5px] font-medium text-ink">
+          {flash}
+        </div>
+      )}
     </div>
   )
 }

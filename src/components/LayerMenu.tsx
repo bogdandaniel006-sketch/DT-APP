@@ -3,6 +3,8 @@ import { LAYER_PENCIL, LAYERS } from '../canvas/style'
 import { appStore, setLayer } from '../state/appStore'
 import { shortcutLabel, shortcutStore } from '../state/shortcuts'
 import { createStore, useStore } from '../state/createStore'
+import { touchDevice } from '../utils/device'
+import { touchHelpStore } from './TouchHelp'
 import type { LayerId } from '../types'
 import { IconButton } from './ui/IconButton'
 import { Popover } from './ui/Popover'
@@ -71,9 +73,20 @@ const LayerTip = () => {
         </button>
       </div>
       <p className="mt-1 text-[12.5px] leading-snug text-muted">
-        Como en papel: cada capa tiene su lápiz. Pulsa en el teclado la tecla <b className="font-semibold text-ink">{first}</b>,{' '}
-        <b className="font-semibold text-ink">{second}</b> o <b className="font-semibold text-ink">{third}</b> y pasas a esa capa al momento, con su
-        lápiz puesto solo.
+        {touchDevice ? (
+          // A phone or a tablet seldom has a keyboard: the button first, the keys for when there is one.
+          <>
+            Como en papel: cada capa tiene su lápiz. Elige la capa en el botón de capas (o con las teclas{' '}
+            <b className="font-semibold text-ink">{first}</b>, <b className="font-semibold text-ink">{second}</b> y{' '}
+            <b className="font-semibold text-ink">{third}</b> si tienes teclado) y el lápiz se pone solo.
+          </>
+        ) : (
+          <>
+            Como en papel: cada capa tiene su lápiz. Pulsa en el teclado la tecla <b className="font-semibold text-ink">{first}</b>,{' '}
+            <b className="font-semibold text-ink">{second}</b> o <b className="font-semibold text-ink">{third}</b> y pasas a esa capa al momento, con
+            su lápiz puesto solo.
+          </>
+        )}
       </p>
       <ul className="mt-3 space-y-2.5">
         {LAYERS.map((l) => (
@@ -101,7 +114,9 @@ const LayerTip = () => {
 }
 
 export const LayerMenu = () => {
-  const tip = useStore(layerTipStore, (s) => s.open)
+  // On a phone or a tablet the touch controls come first; the layers reminder after them.
+  const helpOpen = useStore(touchHelpStore, (s) => s.open)
+  const tip = useStore(layerTipStore, (s) => s.open) && !helpOpen
   return (
     <>
       <LayerPopover onOpen={closeLayerTip} />

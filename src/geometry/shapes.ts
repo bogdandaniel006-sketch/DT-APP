@@ -39,6 +39,9 @@ export const keyPoints = (g: Geometry): KeyPoint[] => {
         ...conicFoci(g).map((p) => ({ p, kind: 'center' as const })),
         ...conicEnds(g).map((p) => ({ p, kind: 'endpoint' as const })),
       ]
+    case 'stroke':
+      // Writing and sketches are not built on.
+      return []
   }
 }
 
@@ -58,6 +61,8 @@ export const translateGeometry = <G extends Drawable>(g: G, d: Vec): G => {
       return { ...g, seed: add(g.seed, d), lines: g.lines.map(([a, b]): [Vec, Vec] => [add(a, d), add(b, d)]) }
     case 'conic':
       return translateConic(g, d) as G
+    case 'stroke':
+      return { ...g, pts: g.pts.map((q) => add(q, d)) }
   }
   return g
 }
@@ -78,6 +83,8 @@ export const anchorOf = (g: Drawable): Vec => {
       return g.p
     case 'hatch':
       return g.seed
+    case 'stroke':
+      return g.pts[0]!
   }
 }
 
@@ -126,6 +133,7 @@ export const shapeName = (g: Drawable): string =>
         distance: 'Distancia',
         angle: 'Ángulo',
         hatch: 'Rayado',
+        stroke: 'Trazo a mano alzada',
       }[g.kind]
 
 /** Measurements shown when a shape is selected. */
@@ -142,6 +150,7 @@ export const measurements = (g: Drawable): string[] => {
     case 'angle':
       return [formatAngle(vertexAngle(g.a, g.b, g.c))]
     case 'point':
+    case 'stroke':
       return []
     case 'hatch':
       return [`${g.angle}°`, `Separación ${String(g.spacing).replace('.', ',')} mm`]
@@ -187,6 +196,8 @@ export const bounds = (g: Drawable): Bounds => {
       return boundsOfPoints(g.lines.length ? g.lines.flat() : [g.seed])
     case 'conic':
       return boundsOfPoints(g.paths.flat())
+    case 'stroke':
+      return boundsOfPoints(g.pts)
   }
 }
 

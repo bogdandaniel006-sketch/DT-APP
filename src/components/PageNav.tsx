@@ -1,7 +1,9 @@
-import { ChevronLeft, ChevronRight, Plus } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Hand, Maximize, Plus } from 'lucide-react'
 import { addBlankPage, goToPage } from '../state/actions'
-import { appStore } from '../state/appStore'
+import { appStore, viewActions } from '../state/appStore'
 import { useStore } from '../state/createStore'
+import { touchDevice } from '../utils/device'
+import { openTouchHelp } from './TouchHelp'
 import { IconButton } from './ui/IconButton'
 
 /** Moves between the pages of the document (when it has several) and adds blank ones. */
@@ -9,7 +11,8 @@ export const PageNav = () => {
   const page = useStore(appStore, (s) => s.page)
   const count = useStore(appStore, (s) => s.pageCount)
   return (
-    <div className="float absolute bottom-5 right-5 z-20 flex items-center gap-0.5 rounded-xl p-1">
+    // On a phone at the top right: clear of the tools and the pencil along the bottom.
+    <div className="float absolute bottom-5 right-5 z-20 flex items-center gap-0.5 rounded-xl p-1 max-sm:bottom-auto max-sm:right-2 max-sm:top-2 short:bottom-auto short:right-2 short:top-2">
       {count > 1 && (
         <>
           <IconButton
@@ -39,6 +42,18 @@ export const PageNav = () => {
       <IconButton label="Añadir una página en blanco" tooltipSide="top" onClick={() => void addBlankPage()}>
         <Plus size={17} />
       </IconButton>
+      {touchDevice && (
+        // With fingers there is no Ctrl 0 nor zoom menu at hand: the whole sheet, and the gestures.
+        <>
+          <div className="mx-0.5 h-5 w-px bg-black/[0.07]" />
+          <IconButton label="Ver la hoja entera" onClick={() => viewActions.fitPage()}>
+            <Maximize size={16} />
+          </IconButton>
+          <IconButton label="Controles táctiles" onClick={openTouchHelp}>
+            <Hand size={17} />
+          </IconButton>
+        </>
+      )}
     </div>
   )
 }

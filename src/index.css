@@ -2,6 +2,10 @@
 
 /* dark: utilities follow the theme chosen in the app, not the system's. */
 @custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+/* touch: phones and tablets that get the touch controls (see src/utils/device.ts). */
+@custom-variant touch (&:where([data-touch='true'], [data-touch='true'] *));
+/* short: screens with little height, as a phone held sideways. */
+@custom-variant short (@media (max-height: 520px));
 
 @theme {
   --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -77,6 +81,14 @@ body {
   background-color: var(--color-desk);
   background-image: radial-gradient(circle, var(--desk-dot) 1px, transparent 1.2px);
   background-size: 22px 22px;
+}
+
+/* Rows that slide sideways on a phone, without a scrollbar in the way. */
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 .sheet {

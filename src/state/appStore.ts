@@ -101,6 +101,17 @@ export const MIN_SCALE = 0.1
 export const MAX_SCALE = 16
 const FIT_MARGIN = 56
 
+/**
+ * Room left around a fitted page for the bars floating over the desk. On a phone held upright the
+ * tools and the pencil sit below it and the pages at the top; held sideways the tools on the left.
+ * Sizes as in the styles: `max-sm` (narrower than 640 px) and `short` (lower than 520 px).
+ */
+const fitInsets = () => {
+  if (window.innerWidth < 640) return { left: 12, right: 12, top: 56, bottom: 132 }
+  if (window.innerHeight <= 520) return { left: 184, right: 20, top: 16, bottom: 72 }
+  return { left: FIT_MARGIN, right: FIT_MARGIN, top: FIT_MARGIN, bottom: FIT_MARGIN }
+}
+
 const clampScale = (s: number) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, s))
 
 /**
@@ -158,10 +169,13 @@ export const viewActions = {
     // Before the workspace is measured there is nothing sensible to fit to.
     if (!r || viewport.w <= 1 || viewport.h <= 1) return
     viewFitted = true
-    const scale = clampScale(Math.min((viewport.w - FIT_MARGIN * 2) / r.w, (viewport.h - FIT_MARGIN * 2) / r.h))
+    const m = fitInsets()
+    const w = viewport.w - m.left - m.right
+    const h = viewport.h - m.top - m.bottom
+    const scale = clampScale(Math.min(w / r.w, h / r.h))
     appStore.set({
       page: index,
-      view: { scale, x: (viewport.w - r.w * scale) / 2 - r.x * scale, y: (viewport.h - r.h * scale) / 2 - r.y * scale },
+      view: { scale, x: m.left + (w - r.w * scale) / 2 - r.x * scale, y: m.top + (h - r.h * scale) / 2 - r.y * scale },
     })
   },
 }

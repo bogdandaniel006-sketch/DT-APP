@@ -63,6 +63,7 @@ const handlesOf = (s: Shape): { handle: Handle; p: Vec }[] => {
     case 'angle':
     case 'hatch':
     case 'conic':
+    case 'stroke':
       return []
   }
 }

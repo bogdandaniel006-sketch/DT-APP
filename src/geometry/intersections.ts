@@ -1,6 +1,7 @@
 import type { Conic, Geometry, Vec } from '../types'
 import { conicSegments } from './conics'
-import { angle, angleInArc, type Arc, type Segment } from './primitives'
+import { angle, angleInArc, segment, type Arc, type Segment } from './primitives'
+import type { Stroke } from './strokes'
 import { EPS, add, cross, dot, length, scale, sub } from './vec'
 
 const PARAM_TOL = 1e-7
@@ -74,6 +75,11 @@ export const intersection = (g1: Geometry, g2: Geometry): Vec[] => {
       for (const p of intersection(piece, other)) if (!found.some((q) => Math.hypot(q.x - p.x, q.y - p.y) < 1e-6)) found.push(p)
     }
     return found
+  }
+  // A freehand stroke too, along its straight pieces (where it meets the outlines of a lining).
+  if (g1.kind === 'stroke' || g2.kind === 'stroke') {
+    const [stroke, other] = g1.kind === 'stroke' ? [g1, g2] : [g2 as Stroke, g1]
+    return stroke.pts.slice(1).flatMap((q, i) => intersection(segment(stroke.pts[i]!, q), other))
   }
   if (g1.kind === 'segment' && g2.kind === 'segment') return segmentSegment(g1, g2)
   if (g1.kind === 'segment' || g2.kind === 'segment') {

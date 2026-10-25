@@ -16,6 +16,8 @@ export interface ToolPointer {
 /** Transient visuals a tool asks the canvas to draw (desk coordinates). */
 export type Overlay =
   | { kind: 'ghost'; geom: Geometry; faint?: boolean }
+  /** A stroke being drawn, as it will look: its pencil's colour and width (desk units). */
+  | { kind: 'ink'; geom: Geometry; color: string; width: number }
   | { kind: 'highlight'; geom: Geometry; tone?: 'accent' | 'danger' }
   | { kind: 'guide'; a: Vec; b: Vec }
   | { kind: 'ray'; origin: Vec; dir: number }

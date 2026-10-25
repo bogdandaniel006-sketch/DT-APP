@@ -27,6 +27,8 @@ const geometryToScreen = (v: View, g: Geometry): Geometry => {
       return { ...g, p: toScreen(v, g.p) }
     case 'conic':
       return { ...g, c: toScreen(v, g.c), a: g.a * v.scale, b: g.b * v.scale, reach: g.reach * v.scale, paths: g.paths.map((path) => path.map((q) => toScreen(v, q))) }
+    case 'stroke':
+      return { ...g, pts: g.pts.map((q) => toScreen(v, q)) }
   }
 }
 
@@ -130,6 +132,19 @@ export const OverlayLayer = ({ overlays, view, handles }: Props) => {
 
   overlays.forEach((o, i) => {
     switch (o.kind) {
+      case 'ink':
+        shapes.push(
+          <path
+            key={i}
+            d={geometryPath(geometryToScreen(view, o.geom))}
+            stroke={o.color}
+            strokeWidth={Math.max(o.width * view.scale, 0.75)}
+            fill="none"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />,
+        )
+        break
       case 'ghost':
         shapes.push(
           <path

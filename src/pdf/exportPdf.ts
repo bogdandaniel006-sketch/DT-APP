@@ -127,6 +127,24 @@ export const exportPdf = async (shapes: readonly Shape[]) => {
               borderDashArray: dashArray,
             })
           }
+          break
+        case 'stroke': {
+          // As it was drawn; a dot when it is a single touch.
+          const pts = s.pts.map(toPdf)
+          if (pts.length === 1) {
+            page.drawCircle({ x: pts[0]!.x, y: pts[0]!.y, size: width / 2, color: style.color, opacity: style.opacity })
+            break
+          }
+          page.drawSvgPath(pts.map((p, i) => `${i ? 'L' : 'M'}${p.x} ${-p.y}`).join(''), {
+            x: 0,
+            y: 0,
+            borderWidth: width,
+            borderColor: style.color,
+            borderOpacity: style.opacity,
+            borderLineCap: LineCapStyle.Round,
+            borderDashArray: dashArray,
+          })
+        }
       }
       if (s.kind === 'segment' && s.dimension) {
         // A dimension: its arrowheads, and its figure written along the line.

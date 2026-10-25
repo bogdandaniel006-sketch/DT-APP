@@ -26,5 +26,7 @@ export const geometryPath = (g: Geometry, pointRadius = 1.2): string => {
       return g.paths
         .map((path) => path.map((q, i) => `${i ? 'L' : 'M'}${n(q.x)} ${n(q.y)}`).join('') + (g.type === 'ellipse' ? 'Z' : ''))
         .join('')
+    case 'stroke':
+      return g.pts.map((q, i) => `${i ? 'L' : 'M'}${n(q.x)} ${n(q.y)}`).join('') + (g.pts.length === 1 ? 'Z' : '')
   }
 }

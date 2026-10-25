@@ -1,4 +1,4 @@
-import { DraftingCompass, Eraser, MousePointer2, MoveHorizontal, RulerDimensionLine, Slash, Type } from 'lucide-react'
+import { DraftingCompass, Eraser, MousePointer2, MoveHorizontal, PencilLine, RulerDimensionLine, Slash, Type } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { appStore, hideInstrument, setTool } from '../state/appStore'
 import { useStore } from '../state/createStore'
@@ -31,6 +31,7 @@ export const TOOLS: readonly ToolDef[] = [
   { id: 'measure-distance', label: 'Medir distancia y ángulo', icon: <RulerDimensionLine size={18} /> },
   { id: 'dimension', label: 'Cota', icon: <MoveHorizontal size={18} /> },
   { id: 'text', label: 'Texto', icon: <Type size={18} /> },
+  { id: 'freehand', label: 'Mano alzada: escribir y dibujar libre', icon: <PencilLine size={18} /> },
   { id: 'hatch', label: 'Rayado de cortes y secciones', icon: <HatchIcon /> },
   { id: 'eraser', label: 'Borrar', shortcut: 'Supr', icon: <Eraser size={18} /> },
 ]
@@ -49,8 +50,10 @@ export const Toolbar = () => {
   return (
     <nav
       aria-label="Herramientas"
-      className="float absolute left-4 top-4 z-20 grid grid-cols-2 gap-1 rounded-2xl p-1.5"
+      // A phone held upright: one row along the bottom that slides sideways. Held sideways: four columns.
+      className="float absolute left-4 top-4 z-20 grid grid-cols-2 gap-1 rounded-2xl p-1.5 short:left-2 short:top-2 short:grid-cols-4 max-sm:inset-x-2 max-sm:bottom-2 max-sm:top-auto max-sm:z-30 max-sm:flex max-sm:items-center"
     >
+      <div className="contents max-sm:no-scrollbar max-sm:flex max-sm:min-w-0 max-sm:flex-1 max-sm:gap-1 max-sm:overflow-x-auto">
       {TOOLS.map((t) => {
         // One button for both measuring modes; the bottom bar switches between them.
         const active = tool === t.id || (t.id === 'measure-distance' && tool === 'measure-angle')
@@ -70,9 +73,10 @@ export const Toolbar = () => {
           </div>
         )
       })}
-      <div className="col-span-2 mx-2 my-1 h-px bg-black/[0.06]" />
+      </div>
+      <div className="col-span-2 mx-2 my-1 h-px bg-black/[0.06] short:col-span-4 max-sm:mx-0.5 max-sm:my-0 max-sm:h-6 max-sm:w-px max-sm:shrink-0" />
       {/* Relative: the layers reminder opens beside the whole bar, not over it. */}
-      <div className="relative col-span-2 flex justify-center">
+      <div className="relative col-span-2 flex justify-center short:col-span-4 max-sm:shrink-0">
         <LayerMenu />
       </div>
     </nav>

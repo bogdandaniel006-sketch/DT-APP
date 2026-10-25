@@ -23,7 +23,7 @@ import { Segmented } from './ui/Segmented'
 import { ExactEntry } from './ExactEntry'
 import { Tooltip } from './ui/Tooltip'
 
-const PENCIL_TOOLS: readonly ToolId[] = ['point', 'text', 'dimension', 'line', 'perpendicular', 'parallel', 'bisector', 'compass', 'arc', 'conic', 'escuadra', 'cartabon']
+const PENCIL_TOOLS: readonly ToolId[] = ['point', 'text', 'dimension', 'line', 'perpendicular', 'parallel', 'bisector', 'compass', 'arc', 'conic', 'freehand', 'escuadra', 'cartabon']
 
 const WIDTHS = [
   { value: 0.25, label: '0,25' },
@@ -122,8 +122,8 @@ const ColorPicker = ({ color, onChange }: { color: string | undefined; onChange:
 )
 
 const PencilPicker = ({ pencil, onChange }: { pencil: Pencil; onChange: (p: Pencil) => void }) => (
-  <div className="flex items-center gap-1.5">
-    <span className="text-[11px] font-medium uppercase tracking-wider text-faint">Lápiz</span>
+  <div className="flex items-center gap-1.5 max-sm:flex-wrap max-sm:justify-center">
+    <span className="text-[11px] font-medium uppercase tracking-wider text-faint max-sm:hidden">Lápiz</span>
     <Segmented<PencilWidth>
       label="Grosor"
       value={pencil.width}
@@ -415,12 +415,13 @@ export const ContextBar = () => {
   if (!hint && !showSelection && !showPencil && !measureTool && !hatching) return null
 
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-5 z-20 flex flex-col items-center gap-2">
-      <div className="flex items-center gap-2">
+    // On a phone it sits above the row of tools, and its options wrap instead of running off the screen.
+    <div className="pointer-events-none absolute inset-x-0 bottom-5 z-20 flex flex-col items-center gap-2 max-sm:bottom-[66px] max-sm:px-2 short:bottom-2 short:pl-[184px]">
+      <div className="flex max-w-full items-center gap-2">
         {hint && (
           <p
             key={hint}
-            className="animate-pop rounded-full bg-white/85 px-3 py-1 text-[12px] text-muted shadow-[0_2px_10px_rgba(15,23,42,0.06)] backdrop-blur"
+            className="animate-pop rounded-full bg-white/85 px-3 py-1 text-[12px] text-muted shadow-[0_2px_10px_rgba(15,23,42,0.06)] backdrop-blur max-sm:rounded-xl max-sm:text-center max-sm:text-[11px]"
             data-testid="hint"
           >
             {hint}
@@ -429,7 +430,7 @@ export const ContextBar = () => {
         <ExactEntry />
       </div>
       {(showSelection || showPencil || measureTool || hatching) && (
-        <div className="float pointer-events-auto flex items-center gap-3 rounded-2xl px-3 py-2" data-testid="context-bar">
+        <div className="float pointer-events-auto flex items-center gap-3 rounded-2xl px-3 py-2 max-sm:max-w-full max-sm:flex-wrap max-sm:justify-center max-sm:gap-2 max-sm:px-2" data-testid="context-bar">
           {showSelection ? (
             <SelectionInfo ids={selection} />
           ) : measureTool ? (

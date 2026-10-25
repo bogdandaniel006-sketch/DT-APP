@@ -5,6 +5,7 @@ import { appStore } from './state/appStore'
 import { documentStore } from './state/documentStore'
 import { detectionStore } from './pdf/detect'
 import './state/theme'
+import './utils/device'
 import './index.css'
 
 // Development only: lets automated tests inspect state. Stripped from production builds.

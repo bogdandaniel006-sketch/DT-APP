@@ -159,7 +159,7 @@ const SnapMenu = () => {
             }`}
           >
             <Magnet size={16} className={mode === 'libre' ? '' : 'text-accent'} />
-            {current.label}
+            <span className="max-sm:hidden short:hidden">{current.label}</span>
           </button>
         </Tooltip>
       )}
@@ -240,7 +240,7 @@ const LoupeToggle = () => {
   const loupe = useStore(appStore, (s) => s.loupe)
   const key = useStore(shortcutStore, (s) => s.keys.loupe)
   return (
-    <IconButton label={loupe ? 'Lupa de precisión: activada' : 'Lupa de precisión'} shortcut={shortcutLabel(key)} active={loupe} onClick={() => appStore.set({ loupe: !loupe })}>
+    <IconButton label={loupe ? 'Lupa de precisión: activada' : 'Lupa de precisión'} shortcut={shortcutLabel(key)} active={loupe} className="max-sm:hidden short:hidden" onClick={() => appStore.set({ loupe: !loupe })}>
       <ScanSearch size={18} />
     </IconButton>
   )
@@ -256,11 +256,11 @@ export const TopBar = () => {
     <header className="relative z-30 flex h-12 shrink-0 items-center gap-1 bg-white px-3 shadow-[0_1px_0_rgba(15,23,42,0.05),0_4px_18px_rgba(15,23,42,0.04)]">
       <Logo />
       {fileName && (
-        <span className="ml-3 max-w-[32vw] truncate text-[12.5px] text-muted" title={fileName}>
+        <span className="ml-3 max-w-[32vw] truncate text-[12.5px] text-muted max-sm:hidden short:hidden" title={fileName}>
           {fileName}
         </span>
       )}
-      <div className="ml-3 flex items-center gap-0.5">
+      <div className="ml-3 flex items-center gap-0.5 max-sm:ml-1">
         <IconButton label="Menú principal" onClick={goToStart}>
           <House size={18} />
         </IconButton>
@@ -285,19 +285,24 @@ export const TopBar = () => {
       </div>
 
       <div className="ml-auto flex items-center gap-0.5">
-        <ThemeToggle className="mr-1" />
+        <ThemeToggle className="mr-1 max-sm:hidden short:hidden" />
         <IconButton label="Deshacer" shortcut="Ctrl Z" disabled={!canUndo} onClick={documentActions.undo}>
           <Undo2 size={18} />
         </IconButton>
         <IconButton label="Rehacer" shortcut="Ctrl ⇧ Z" disabled={!canRedo} onClick={documentActions.redo}>
           <Redo2 size={18} />
         </IconButton>
-        <div className="mx-1.5 h-5 w-px bg-black/[0.07]" />
+        <div className="mx-1.5 h-5 w-px bg-black/[0.07] max-sm:hidden" />
         <SnapMenu />
         <LoupeToggle />
-        <div className="mx-1.5 h-5 w-px bg-black/[0.07]" />
-        <ZoomMenu />
-        <ControlsMenu />
+        <div className="mx-1.5 h-5 w-px bg-black/[0.07] max-sm:hidden" />
+        {/* On a phone the fingers zoom, and the page button fits the sheet. */}
+        <div className="max-sm:hidden">
+          <ZoomMenu />
+        </div>
+        <div className="max-sm:hidden short:hidden">
+          <ControlsMenu />
+        </div>
       </div>
     </header>
   )

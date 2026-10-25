@@ -1,4 +1,5 @@
 import { useRef, useState, type ReactNode } from 'react'
+import { touchDevice } from '../../utils/device'
 
 type Side = 'right' | 'bottom' | 'top'
 
@@ -27,6 +28,8 @@ export const Tooltip = ({ label, shortcut, side = 'bottom', children }: Props) =
     clearTimeout(timer.current)
     setOpen(false)
   }
+  // No pointer hovers on a touch screen: a tap would leave the label stuck on.
+  if (touchDevice) return <>{children}</>
   return (
     <div className="relative" onPointerEnter={show} onPointerLeave={hide} onPointerDown={hide} onFocus={show} onBlur={hide}>
       {children}

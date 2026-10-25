@@ -13,6 +13,8 @@ export type Geometry =
   | { kind: 'arc'; c: Vec; r: number; start: number; sweep: number }
   | { kind: 'point'; p: Vec }
   | Conic
+  /** Drawn freehand (writing, sketching): the line as the pen went, simplified. */
+  | { kind: 'stroke'; pts: Vec[] }
 
 export type ConicType = 'ellipse' | 'hyperbola' | 'parabola'
 
@@ -132,6 +134,7 @@ export type ToolId =
   | 'text'
   | 'hatch'
   | 'conic'
+  | 'freehand'
   | 'eraser'
 
 export type InstrumentKind = 'escuadra' | 'cartabon'

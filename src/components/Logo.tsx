@@ -4,6 +4,6 @@ export const Logo = () => (
       <path d="M7 25V7l18 18z" fill="none" stroke="#2563EB" strokeWidth="2.2" strokeLinejoin="round" />
       <path d="M11 21v-6l6 6z" fill="none" stroke="#2563EB" strokeWidth="1.6" strokeLinejoin="round" />
     </svg>
-    <span className="text-[14px] font-semibold tracking-[-0.01em] text-ink">Lámina</span>
+    <span className="text-[14px] font-semibold tracking-[-0.01em] text-ink max-sm:hidden short:hidden">Lámina</span>
   </div>
 )
