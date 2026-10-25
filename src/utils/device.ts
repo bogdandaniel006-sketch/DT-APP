@@ -1,8 +1,10 @@
+import { createStore } from '../state/createStore'
+
 /**
  * What the app runs on. Phones, tablets and Android classroom panels (Android, iPhone, iPad) get
- * the touch controls: gestures with the fingers and their help. Computers never do, touch screen
- * or not: Windows, macOS, ChromeOS and Linux stay as they are, mouse and keyboard, without the
- * extra listening.
+ * the touch controls: gestures with the fingers and their help. Computers do not, touch screen
+ * or not (Windows, macOS, ChromeOS and Linux), unless someone turns them on: a computer touched
+ * with two fingers offers them, for a laptop shown on a classroom touch screen.
  */
 const nav = navigator as Navigator & { userAgentData?: { platform?: string } }
 const ua = nav.userAgent
@@ -20,7 +22,52 @@ const isLinuxComputer = !/Android/i.test(ua) && /Linux|X11/.test(ua) && !/arm|aa
 
 export const isComputer = isWindows || isMac || isChromeOS || isLinuxComputer
 
-export const touchDevice = !isComputer && (nav.maxTouchPoints > 0 || matchMedia('(pointer: coarse)').matches)
+/** A phone or a tablet: the touch controls are always on. */
+const touchByNature = !isComputer && (nav.maxTouchPoints > 0 || matchMedia('(pointer: coarse)').matches)
 
-// For the styles: `touch:` utilities apply on these devices only.
-if (touchDevice) document.documentElement.dataset.touch = 'true'
+const KEY = 'lamina:tactil'
+
+/** What was answered on this computer: 'si' turned them on, 'no' declined the offer. */
+const answered = (): string | null => {
+  try {
+    return localStorage.getItem(KEY)
+  } catch {
+    return null
+  }
+}
+
+/** Whether the touch controls are on, and whether a computer has just been touched with two fingers. */
+export const touchStore = createStore<{ on: boolean; offered: boolean }>({
+  on: touchByNature || (isComputer && answered() === 'si'),
+  offered: false,
+})
+
+const apply = (on: boolean) => {
+  // For the styles: `touch:` utilities apply only while the controls are on.
+  if (on) document.documentElement.dataset.touch = 'true'
+  else delete document.documentElement.dataset.touch
+}
+apply(touchStore.get().on)
+
+/** Read where the fingers are handled: the controls can be turned on while the app is open. */
+export const touchOn = () => touchStore.get().on
+
+/** Turns the touch controls of a computer on or off, remembered on it. */
+export const setTouch = (on: boolean) => {
+  touchStore.set({ on, offered: false })
+  apply(on)
+  try {
+    localStorage.setItem(KEY, on ? 'si' : 'no')
+  } catch {
+    /* not remembered: it lasts until the page is closed */
+  }
+}
+
+/** A computer touched with two fingers: offer the touch controls, once, unless already answered. */
+export const offerTouch = () => {
+  if (!isComputer || touchStore.get().on || touchStore.get().offered || answered()) return
+  touchStore.set({ offered: true })
+}
+
+/** "Not now": the offer goes away and does not come back on this computer. */
+export const declineTouch = () => setTouch(false)

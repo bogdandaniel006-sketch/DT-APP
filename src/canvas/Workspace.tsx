@@ -17,7 +17,7 @@ import { isGeometry, isHatch, isMeasure, isText, type Geometry, type InstrumentK
 import { newId } from '../utils/id'
 import { localPoint } from '../utils/localPoint'
 import { nextPointName } from '../utils/pointNames'
-import { touchDevice } from '../utils/device'
+import { offerTouch, touchOn } from '../utils/device'
 import { wheelDelta, wheelZoomFactor } from '../utils/wheel'
 import { InstrumentBody } from './InstrumentLayer'
 import { Loupe } from './Loupe'
@@ -239,7 +239,7 @@ export const Workspace = ({ spaceDown }: { spaceDown: boolean }) => {
   const pointer = useCallback(
     (e: ReactPointerEvent): ToolPointer => {
       const screen = localPoint(container.current!, e.clientX, e.clientY)
-      const touch = touchDevice && e.pointerType !== 'mouse'
+      const touch = touchOn() && e.pointerType !== 'mouse'
       return { screen, world: screenToDesk(view, screen), shift: e.shiftKey, alt: e.altKey, ctrl: e.ctrlKey || e.metaKey, ...(touch && { touch }) }
     },
     [view],
@@ -393,8 +393,27 @@ export const Workspace = ({ spaceDown }: { spaceDown: boolean }) => {
     bumpTools()
   }
 
+  /** Fingers on a computer whose touch controls are off (a laptop on a classroom touch screen). */
+  const computerFingers = useRef(new Set<number>())
+  /** Two fingers at once there offer the controls; returns whether the touch is kept from the tool. */
+  const noticeFingers = (e: ReactPointerEvent, down: boolean) => {
+    if (!down) {
+      computerFingers.current.delete(e.pointerId)
+      return false
+    }
+    computerFingers.current.add(e.pointerId)
+    if (computerFingers.current.size < 2) return false
+    // Someone meant to zoom or move: what the first finger began is dropped.
+    documentActions.cancelGesture()
+    tool.cancel()
+    bumpTools()
+    offerTouch()
+    return true
+  }
+
   const onPointerDown = (e: ReactPointerEvent) => {
-    if (touchDevice && e.pointerType === 'touch') return touchDown(e)
+    if (e.pointerType === 'touch' && touchOn()) return touchDown(e)
+    if (e.pointerType === 'touch' && noticeFingers(e, true)) return
     if (e.pointerType === 'pen') penDown.current = true
     container.current?.setPointerCapture(e.pointerId)
     if (appStore.get().naming) appStore.set({ naming: null })
@@ -425,7 +444,7 @@ export const Workspace = ({ spaceDown }: { spaceDown: boolean }) => {
   }, [view])
 
   const onPointerMove = (e: ReactPointerEvent) => {
-    if (touchDevice && e.pointerType === 'touch') return touchMove(e)
+    if (e.pointerType === 'touch' && touchOn()) return touchMove(e)
     lastPointer.current = pointer(e)
     if (pan.current) {
       viewActions.pan(e.clientX - pan.current.last.x, e.clientY - pan.current.last.y)
@@ -439,7 +458,8 @@ export const Workspace = ({ spaceDown }: { spaceDown: boolean }) => {
   }
 
   const onPointerUp = (e: ReactPointerEvent) => {
-    if (touchDevice && e.pointerType === 'touch') return touchUp(e)
+    if (e.pointerType === 'touch' && touchOn()) return touchUp(e)
+    if (e.pointerType === 'touch') noticeFingers(e, false)
     if (e.pointerType === 'pen') penDown.current = false
     if (container.current?.hasPointerCapture(e.pointerId)) container.current.releasePointerCapture(e.pointerId)
     if (pan.current) {

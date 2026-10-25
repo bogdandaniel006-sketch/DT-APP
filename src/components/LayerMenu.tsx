@@ -3,7 +3,7 @@ import { LAYER_PENCIL, LAYERS } from '../canvas/style'
 import { appStore, setLayer } from '../state/appStore'
 import { shortcutLabel, shortcutStore } from '../state/shortcuts'
 import { createStore, useStore } from '../state/createStore'
-import { touchDevice } from '../utils/device'
+import { isComputer, touchStore } from '../utils/device'
 import { touchHelpStore } from './TouchHelp'
 import type { LayerId } from '../types'
 import { IconButton } from './ui/IconButton'
@@ -52,6 +52,8 @@ const Key = ({ children }: { children: string }) => (
  */
 const LayerTip = () => {
   const keys = useStore(shortcutStore, (s) => s.keys)
+  // A phone or a tablet seldom has a keyboard; a computer always does.
+  const noKeyboard = useStore(touchStore, (s) => s.on) && !isComputer
   const [first, second, third] = LAYERS.map((l) => shortcutLabel(keys[`layer-${l.id}`]))
   return (
     <div
@@ -73,7 +75,7 @@ const LayerTip = () => {
         </button>
       </div>
       <p className="mt-1 text-[12.5px] leading-snug text-muted">
-        {touchDevice ? (
+        {noKeyboard ? (
           // A phone or a tablet seldom has a keyboard: the button first, the keys for when there is one.
           <>
             Como en papel: cada capa tiene su lápiz. Elige la capa en el botón de capas (o con las teclas{' '}

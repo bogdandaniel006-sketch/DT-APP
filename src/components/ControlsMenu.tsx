@@ -12,6 +12,7 @@ import {
   shortcutStore,
   type ShortcutId,
 } from '../state/shortcuts'
+import { isComputer, setTouch, touchStore } from '../utils/device'
 import { IconButton } from './ui/IconButton'
 import { Popover } from './ui/Popover'
 
@@ -135,6 +136,27 @@ const Shortcuts = () => {
   )
 }
 
+/**
+ * On a computer: the touch controls, for a touch screen or a classroom board it is shown on.
+ * Phones and tablets always have them, so there is nothing to choose there.
+ */
+const TouchSwitch = () => {
+  const on = useStore(touchStore, (s) => s.on)
+  if (!isComputer) return null
+  return (
+    <section className="pb-1.5">
+      <GroupTitle>Pantalla táctil</GroupTitle>
+      <label className="flex cursor-pointer items-start gap-3 px-2.5 py-1 text-[12.5px] leading-snug text-ink">
+        <span className="flex-1">
+          Controles con los dedos
+          <span className="block text-[11.5px] text-muted">Para pantallas y pizarras táctiles: pellizcar para el zoom, dos dedos para mover y deshacer.</span>
+        </span>
+        <input type="checkbox" checked={on} onChange={(e) => setTouch(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-accent)]" />
+      </label>
+    </section>
+  )
+}
+
 /** Every keyboard and mouse control in one place; the single-key shortcuts can be changed. */
 export const ControlsMenu = () => (
   <Popover
@@ -147,6 +169,7 @@ export const ControlsMenu = () => (
   >
     {(close) => (
       <div className="max-h-[calc(100vh-5rem)] w-80 overflow-y-auto">
+        <TouchSwitch />
         <Shortcuts />
         {FIXED.map((g) => (
           <section key={g.title} className="pb-1.5">

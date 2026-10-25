@@ -1,13 +1,22 @@
 import { Hand, Maximize, PencilLine, X } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { createStore, useStore } from '../state/createStore'
-import { touchDevice } from '../utils/device'
+import { declineTouch, setTouch, touchStore } from '../utils/device'
 
 /**
  * The touch controls, explained when the desk opens on a phone or a tablet (every visit, until
  * closed; the hand button brings it back). The layers reminder waits until it is closed.
  */
-export const touchHelpStore = createStore<{ open: boolean }>({ open: touchDevice })
+export const touchHelpStore = createStore<{ open: boolean }>({ open: touchStore.get().on })
+
+// Turned on later (on a computer touched with two fingers): the controls are explained then.
+let wasOn = touchStore.get().on
+touchStore.subscribe(() => {
+  const { on } = touchStore.get()
+  if (on && !wasOn) touchHelpStore.set({ open: true })
+  if (!on) touchHelpStore.set({ open: false })
+  wasOn = on
+})
 
 export const openTouchHelp = () => touchHelpStore.set({ open: true })
 const close = () => touchHelpStore.set({ open: false })
@@ -33,6 +42,52 @@ const Row = ({ sign, children }: { sign: ReactNode; children: ReactNode }) => (
     <p>{children}</p>
   </li>
 )
+
+/**
+ * On a computer touched with two fingers (a laptop shown on a classroom touch screen): the touch
+ * controls are offered, at the top, until answered. The answer is remembered on that computer.
+ */
+export const TouchOffer = () => {
+  const offered = useStore(touchStore, (s) => s.offered)
+  if (!offered) return null
+  return (
+    <div
+      role="dialog"
+      aria-label="Activar los controles táctiles"
+      className="float animate-pop absolute left-1/2 top-4 z-40 w-[380px] max-w-[calc(100%-24px)] -translate-x-1/2 rounded-2xl p-4"
+    >
+      <div className="flex items-start gap-3">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent">
+          <Hand size={18} />
+        </span>
+        <div className="flex-1">
+          <p className="text-[14px] font-semibold text-ink">¿Usas una pantalla táctil?</p>
+          <p className="mt-1 text-[12.5px] leading-snug text-muted">
+            Activa los controles con los dedos: pellizca para acercar o alejar, mueve la hoja con dos dedos y deshaz con un toque de dos
+            dedos.
+          </p>
+        </div>
+      </div>
+      <div className="mt-3 flex gap-2">
+        <button
+          type="button"
+          onClick={declineTouch}
+          className="h-9 flex-1 rounded-[10px] text-[13px] font-medium text-ink ring-1 ring-black/10 outline-none transition-colors hover:bg-black/[0.035]"
+        >
+          Ahora no
+        </button>
+        <button
+          type="button"
+          onClick={() => setTouch(true)}
+          className="h-9 flex-1 rounded-[10px] bg-accent text-[13px] font-medium text-white outline-none transition-opacity hover:opacity-90"
+        >
+          Activar
+        </button>
+      </div>
+      <p className="mt-2 text-[11px] text-faint">Puedes cambiarlo cuando quieras en el menú de Controles (el teclado).</p>
+    </div>
+  )
+}
 
 export const TouchHelp = () => {
   const open = useStore(touchHelpStore, (s) => s.open)

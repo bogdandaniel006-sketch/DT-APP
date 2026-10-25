@@ -1,5 +1,6 @@
 import { useRef, useState, type ReactNode } from 'react'
-import { touchDevice } from '../../utils/device'
+import { useStore } from '../../state/createStore'
+import { isComputer, touchStore } from '../../utils/device'
 
 type Side = 'right' | 'bottom' | 'top'
 
@@ -19,6 +20,8 @@ interface Props {
 /** Small delayed tooltip; the only place keyboard shortcuts are shown. */
 export const Tooltip = ({ label, shortcut, side = 'bottom', children }: Props) => {
   const [open, setOpen] = useState(false)
+  // Off on phones and tablets; a computer keeps them for its mouse even with the touch controls on.
+  const touch = useStore(touchStore, (s) => s.on) && !isComputer
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
   const show = () => {
     clearTimeout(timer.current)
@@ -29,7 +32,7 @@ export const Tooltip = ({ label, shortcut, side = 'bottom', children }: Props) =
     setOpen(false)
   }
   // No pointer hovers on a touch screen: a tap would leave the label stuck on.
-  if (touchDevice) return <>{children}</>
+  if (touch) return <>{children}</>
   return (
     <div className="relative" onPointerEnter={show} onPointerLeave={hide} onPointerDown={hide} onFocus={show} onBlur={hide}>
       {children}
