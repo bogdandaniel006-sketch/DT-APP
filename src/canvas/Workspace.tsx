@@ -273,6 +273,10 @@ export const Workspace = ({ spaceDown }: { spaceDown: boolean }) => {
     held.current = null
     drawing.current = h.id
     const { tool: t, api: a } = latest.current
+    // A finger does not hover: the tool is first told where it is, as a mouse would have shown it
+    // by moving there. Otherwise a tap acts where the previous one was (a compass finishing on its
+    // old point, and the next tap taken for a new centre).
+    t.move(h.down, a)
     t.down(h.down, a)
     for (const m of h.moves) t.move(m, a)
     bumpTools()
