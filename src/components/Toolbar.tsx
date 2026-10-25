@@ -71,7 +71,8 @@ export const Toolbar = () => {
         )
       })}
       <div className="col-span-2 mx-2 my-1 h-px bg-black/[0.06]" />
-      <div className="col-span-2 flex justify-center">
+      {/* Relative: the layers reminder opens beside the whole bar, not over it. */}
+      <div className="relative col-span-2 flex justify-center">
         <LayerMenu />
       </div>
     </nav>

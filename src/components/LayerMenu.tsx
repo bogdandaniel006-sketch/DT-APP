@@ -1,5 +1,6 @@
-import { Check, Eye, EyeOff, Layers, Lock } from 'lucide-react'
-import { LAYERS } from '../canvas/style'
+import { Check, Eye, EyeOff, Layers, Lock, X } from 'lucide-react'
+import { useState } from 'react'
+import { LAYER_PENCIL, LAYERS } from '../canvas/style'
 import { appStore, setLayer } from '../state/appStore'
 import { shortcutLabel, shortcutStore } from '../state/shortcuts'
 import { useStore } from '../state/createStore'
@@ -21,7 +22,92 @@ const VisibilityToggle = ({ visible, onToggle, label }: { visible: boolean; onTo
   </button>
 )
 
+/** What each layer is for, in the order they are switched to with the keyboard. */
+const LAYER_USES: Record<LayerId, string> = {
+  construccion: 'las líneas con las que construyes: rectas, arcos y trazos del compás.',
+  auxiliares: 'las ayudas que no son la solución: ejes, prolongaciones y datos. Se ven más suaves.',
+  resultado: 'la solución final, lo que tiene que destacar en la lámina.',
+}
+
+const pencilName = (id: LayerId) => {
+  const { width, hardness } = LAYER_PENCIL[id]
+  return `${String(width).replace('.', ',')} · ${hardness}`
+}
+
+/** The reminder is closed for as long as the page stays open; every new visit shows it again. */
+let tipClosed = false
+
+/**
+ * A reminder of how layers work, beside their button each time the app is opened, until closed.
+ * Many draw everything on one layer: this tells what each is for and how to switch between them.
+ */
+const LayerTip = ({ onClose }: { onClose: () => void }) => {
+  const keys = useStore(shortcutStore, (s) => s.keys)
+  return (
+    <div
+      role="dialog"
+      aria-label="Cómo usar las capas"
+      className="float animate-pop absolute bottom-0 left-full z-40 ml-3.5 w-[330px] rounded-2xl p-4 text-left max-sm:fixed max-sm:inset-x-3 max-sm:bottom-28 max-sm:ml-0 max-sm:w-auto"
+    >
+      {/* The point of the bubble, towards the layers button. */}
+      <span className="absolute -left-1.5 bottom-3.5 h-3 w-3 rotate-45 bg-white max-sm:hidden" aria-hidden />
+      <div className="flex items-start gap-2">
+        <p className="flex-1 text-[14px] font-semibold text-ink">Dibuja cada cosa en su capa</p>
+        <button
+          type="button"
+          aria-label="Cerrar"
+          onClick={onClose}
+          className="-mr-1 -mt-1 grid h-7 w-7 place-items-center rounded-md text-muted outline-none transition-colors hover:bg-black/[0.05] hover:text-ink focus-visible:ring-2 focus-visible:ring-accent/40"
+        >
+          <X size={15} />
+        </button>
+      </div>
+      <p className="mt-1 text-[12.5px] leading-snug text-muted">
+        Como en papel: cada capa tiene su lápiz. Cambia de capa con las teclas del teclado y el lápiz se pone solo.
+      </p>
+      <ul className="mt-3 space-y-2.5">
+        {LAYERS.map((l) => (
+          <li key={l.id} className="flex gap-2.5">
+            <kbd className="grid h-6 min-w-6 shrink-0 place-items-center rounded-md bg-accent-soft px-1.5 font-sans text-[12px] font-semibold text-accent">
+              {shortcutLabel(keys[`layer-${l.id}`])}
+            </kbd>
+            <p className="text-[12.5px] leading-snug text-ink/80">
+              <span className="font-semibold text-ink">{l.name}</span>{' '}
+              <span className="whitespace-nowrap text-[11.5px] font-medium text-accent">({pencilName(l.id)})</span>: {LAYER_USES[l.id]}
+            </p>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-3 text-[11.5px] leading-snug text-muted">
+        En este botón de capas ves en cuál estás y, con el ojo, puedes ocultar cada una para revisar tu dibujo.
+      </p>
+      <button
+        type="button"
+        onClick={onClose}
+        className="mt-3 h-9 w-full rounded-[10px] bg-accent text-[13px] font-medium text-white outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-accent/40"
+      >
+        Entendido
+      </button>
+    </div>
+  )
+}
+
 export const LayerMenu = () => {
+  const [tip, setTip] = useState(!tipClosed)
+  const closeTip = () => {
+    tipClosed = true
+    setTip(false)
+  }
+  return (
+    <>
+      <LayerPopover onOpen={closeTip} />
+      {tip && <LayerTip onClose={closeTip} />}
+    </>
+  )
+}
+
+/** The layers button and its menu: which one is drawn on, which are shown. */
+const LayerPopover = ({ onOpen }: { onOpen: () => void }) => {
   const layer = useStore(appStore, (s) => s.layer)
   const hidden = useStore(appStore, (s) => s.hiddenLayers)
   const pdfVisible = useStore(appStore, (s) => s.pdfVisible)
@@ -35,7 +121,15 @@ export const LayerMenu = () => {
     <Popover
       side="right"
       trigger={({ open, toggle: t }) => (
-        <IconButton label="Capas" tooltipSide="right" active={open} onClick={t}>
+        <IconButton
+          label="Capas"
+          tooltipSide="right"
+          active={open}
+          onClick={() => {
+            onOpen()
+            t()
+          }}
+        >
           <Layers size={18} />
         </IconButton>
       )}
