@@ -239,7 +239,8 @@ export const Workspace = ({ spaceDown }: { spaceDown: boolean }) => {
   const pointer = useCallback(
     (e: ReactPointerEvent): ToolPointer => {
       const screen = localPoint(container.current!, e.clientX, e.clientY)
-      return { screen, world: screenToDesk(view, screen), shift: e.shiftKey, alt: e.altKey, ctrl: e.ctrlKey || e.metaKey }
+      const touch = touchDevice && e.pointerType !== 'mouse'
+      return { screen, world: screenToDesk(view, screen), shift: e.shiftKey, alt: e.altKey, ctrl: e.ctrlKey || e.metaKey, ...(touch && { touch }) }
     },
     [view],
   )

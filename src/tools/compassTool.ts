@@ -15,6 +15,8 @@ type Stage =
   | { name: 'measure'; from: Vec | null }
 
 const FULL_TURN_TOL = 1e-3
+/** With a finger, pressing on the centre and dragging further than this (screen px) gives the radius on release. */
+const DRAG_PX = 8
 /** Coming back this close (screen px) to where an arc started closes it into the whole circle. */
 const CLOSE_PX = 10
 
@@ -31,6 +33,8 @@ export const createCompassTool = (mode: 'circle' | 'arc'): Tool => {
   let stage: Stage = { name: 'center' }
   let cursor: Vec | null = null
   let snap: SnapResult | null = null
+  /** Where a finger pressed to place the centre, while it has not been lifted. */
+  let pressedAt: Vec | null = null
 
   const fixedRadius = () => appStore.get().compassRadius
 
@@ -43,6 +47,14 @@ export const createCompassTool = (mode: 'circle' | 'arc'): Tool => {
   const startSweep = (center: Vec, r: number, towards: Vec): Stage => {
     const start = angle(center, towards)
     return { name: 'sweep', center, r, start, last: start, sweep: 0 }
+  }
+
+  /** The radius given by a point: the circle is made, or the arc starts there. */
+  const setRadius = (api: ToolApi, center: Vec, p: Vec) => {
+    const r = fixedRadius() ?? distance(center, p)
+    if (r < api.px(1) || distance(center, p) < api.px(1)) return
+    if (mode === 'circle') commitCircle(api, center, r)
+    else stage = startSweep(center, r, p)
   }
 
   const commitCircle = (api: ToolApi, center: Vec, r: number) => {
@@ -77,8 +89,9 @@ export const createCompassTool = (mode: 'circle' | 'arc'): Tool => {
         stage = { name: 'center' }
       }
     },
-    down(_e, api) {
+    down(e, api) {
       sync()
+      pressedAt = null
       const p = cursor
       if (!p) return
       const fixed = fixedRadius()
@@ -92,15 +105,14 @@ export const createCompassTool = (mode: 'circle' | 'arc'): Tool => {
           return
         case 'center':
           if (fixed && mode === 'circle') commitCircle(api, p, fixed)
-          else stage = { name: 'radius', center: p }
+          else {
+            stage = { name: 'radius', center: p }
+            if (e.touch) pressedAt = e.screen
+          }
           return
-        case 'radius': {
-          const r = fixed ?? distance(stage.center, p)
-          if (r < api.px(1) || distance(stage.center, p) < api.px(1)) return
-          if (mode === 'circle') commitCircle(api, stage.center, r)
-          else stage = startSweep(stage.center, r, p)
-          return
-        }
+        case 'radius':
+          return setRadius(api, stage.center, p)
+
         case 'sweep': {
           const { center, r, start } = stage
           const sweep = closedSweep(stage.sweep, r, api)
@@ -120,9 +132,17 @@ export const createCompassTool = (mode: 'circle' | 'arc'): Tool => {
         stage = { ...stage, last: current, sweep }
       }
     },
-    up() {},
+    up(e, api) {
+      // A finger that pressed the centre and dragged out: lifting it gives the radius, as far as it went.
+      // A tap (press and lift in place) waits for the next tap, as with the mouse.
+      const from = pressedAt
+      pressedAt = null
+      if (!from || stage.name !== 'radius' || !cursor) return
+      if (distance(from, e.screen) > DRAG_PX) setRadius(api, stage.center, cursor)
+    },
     cancel() {
       sync()
+      pressedAt = null
       if (stage.name === 'measure') {
         appStore.set({ measuring: false })
         stage = { name: 'center' }

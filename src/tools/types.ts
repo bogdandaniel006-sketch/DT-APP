@@ -11,6 +11,8 @@ export interface ToolPointer {
   alt: boolean
   /** Ctrl, or ⌘ on a Mac. */
   ctrl: boolean
+  /** A finger or a stylus on a phone or a tablet (never on Windows, see utils/device). */
+  touch?: boolean
 }
 
 /** Transient visuals a tool asks the canvas to draw (desk coordinates). */
