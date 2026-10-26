@@ -1,4 +1,4 @@
-import { EyeOff, FlipVertical2, Pencil as PencilIcon, Ruler, Trash2, X } from 'lucide-react'
+import { Check, EyeOff, FlipVertical2, Layers, Pencil as PencilIcon, Ruler, Trash2, X } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { measurements, shapeName } from '../geometry/shapes'
 import { appStore, flipInstrument, hideInstrument, setTool } from '../state/appStore'
@@ -18,7 +18,7 @@ import { LAYERS, PENCIL_COLORS } from '../canvas/style'
 import { HATCH_ANGLES } from '../geometry/hatch'
 import { hatchStore, relineHatches } from '../tools/hatchTool'
 import { conicStore } from '../tools/conicTool'
-import { Popover } from './ui/Popover'
+import { MenuItem, Popover } from './ui/Popover'
 import { Segmented } from './ui/Segmented'
 import { ExactEntry } from './ExactEntry'
 import { Tooltip } from './ui/Tooltip'
@@ -35,9 +35,15 @@ const HARDNESS = [
   { value: 'H', label: 'H' },
   { value: 'HB', label: 'HB' },
 ] as const
+/** A short line, continuous or dashed: the choice of stroke, drawn instead of written. */
+const LineSample = ({ dashed = false }: { dashed?: boolean }) => (
+  <svg width="22" height="12" viewBox="0 0 22 12" aria-hidden className="block">
+    <path d="M2 6h18" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeDasharray={dashed ? '4 3' : undefined} />
+  </svg>
+)
 const STROKES = [
-  { value: 'solid', label: 'Continua' },
-  { value: 'dashed', label: 'Discontinua' },
+  { value: 'solid', label: <LineSample />, hint: 'Continua' },
+  { value: 'dashed', label: <LineSample dashed />, hint: 'Discontinua' },
 ] as const
 
 /** How graphite shows in the colour picker (the real shade depends on the lead). */
@@ -121,9 +127,10 @@ const ColorPicker = ({ color, onChange }: { color: string | undefined; onChange:
   </Popover>
 )
 
-const PencilPicker = ({ pencil, onChange }: { pencil: Pencil; onChange: (p: Pencil) => void }) => (
+/** The pencil: width, lead, stroke and colour. Its heading is left out where room is short (a selection). */
+const PencilPicker = ({ pencil, onChange, heading = true }: { pencil: Pencil; onChange: (p: Pencil) => void; heading?: boolean }) => (
   <div className="flex items-center gap-1.5 max-sm:flex-wrap max-sm:justify-center">
-    <span className="text-[11px] font-medium uppercase tracking-wider text-faint max-sm:hidden">Lápiz</span>
+    {heading && <span className="text-[11px] font-medium uppercase tracking-wider text-faint max-sm:hidden">Lápiz</span>}
     <Segmented<PencilWidth>
       label="Grosor"
       value={pencil.width}
@@ -226,9 +233,11 @@ const NameField = ({ id, name, writing, label = 'Nombre', placeholder }: { id: s
     if (next === name || (writing && !next)) return setValue(name)
     documentActions.update([id], (s) => ({ ...s, name: next || undefined }))
   }
+  // A name says what it is inside its empty box; a text and a dimension figure keep their heading.
+  const heading = writing || label !== 'Nombre'
   return (
     <label className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-faint">
-      {writing ? 'Texto' : label}
+      {heading && (writing ? 'Texto' : label)}
       <input
         value={value}
         maxLength={writing ? MAX_TEXT_LENGTH : MAX_NAME_LENGTH}
@@ -244,10 +253,10 @@ const NameField = ({ id, name, writing, label = 'Nombre', placeholder }: { id: s
         }}
         spellCheck={false}
         aria-label={writing ? 'Texto' : label}
-        placeholder={placeholder}
+        placeholder={placeholder ?? (heading ? undefined : 'Nombre')}
         data-testid="point-name-input"
         className={`h-7 rounded-md bg-black/[0.04] px-2 text-[13px] normal-case tracking-normal text-ink outline-none focus:bg-accent-soft focus:text-accent ${
-          writing ? 'w-52 font-normal' : 'w-14 text-center font-semibold'
+          writing ? 'w-52 font-normal' : 'w-[4.5rem] text-center font-semibold placeholder:font-normal placeholder:text-faint'
         }`}
       />
     </label>
@@ -264,23 +273,54 @@ const Info = ({ children }: { children: ReactNode }) => (
  * The layer of what is selected, and moving it to another. Only the layer changes: each stroke
  * keeps its pencil. With strokes from several layers none is marked until one is picked.
  */
+/**
+ * The layer of what is selected, behind a button with the icon of the layers: it opens upwards
+ * with the three, the current one ticked, and moves the selection to the one picked. Only the
+ * layer changes: each stroke keeps its pencil. With strokes from several layers none is ticked.
+ */
 const LayerChoice = ({ ids, layers }: { ids: readonly string[]; layers: readonly LayerId[] }) => {
   const shared = layers.every((l) => l === layers[0]) ? layers[0] : undefined
+  const name = LAYERS.find((l) => l.id === shared)?.name
   return (
-    <div className="flex items-center gap-1.5">
-      <span className="text-[11px] font-medium uppercase tracking-wider text-faint">Capa</span>
-      <Segmented<LayerId | 'varias'>
-        label="Capa de la selección"
-        value={shared ?? 'varias'}
-        options={LAYERS.map((l) => ({ value: l.id, label: l.name }))}
-        onChange={(layer) => {
-          if (layer === 'varias') return
-          documentActions.update(ids, (s) => ({ ...s, layer }))
-          // Into a hidden layer it would vanish while selected: that layer is shown again.
-          appStore.set({ hiddenLayers: appStore.get().hiddenLayers.filter((h) => h !== layer) })
-        }}
-      />
-    </div>
+    <Popover
+      side="top"
+      align="right"
+      trigger={({ open, toggle }) => (
+        <Tooltip label={name ? `Capa: ${name}` : 'Capa: varias'} side="top">
+          <button
+            type="button"
+            aria-label={name ? `Capa: ${name} · cambiar de capa` : 'Cambiar de capa'}
+            onClick={toggle}
+            className={`grid h-7 w-7 place-items-center rounded-lg outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent/40 ${
+              open ? 'bg-accent-soft text-accent' : 'text-ink/70 hover:bg-black/[0.04] hover:text-ink'
+            }`}
+          >
+            <Layers size={16} />
+          </button>
+        </Tooltip>
+      )}
+    >
+      {(close) => (
+        <div className="w-52">
+          <p className="px-2.5 pb-1 pt-1.5 text-[11px] font-medium uppercase tracking-wider text-faint">Mover a la capa</p>
+          {[...LAYERS].reverse().map((l) => (
+            <MenuItem
+              key={l.id}
+              icon={l.id === shared ? <Check size={15} strokeWidth={2.4} /> : <span className="block w-[15px]" />}
+              label={l.name}
+              checked={l.id === shared}
+              onSelect={() => {
+                close()
+                if (l.id === shared) return
+                documentActions.update(ids, (s) => ({ ...s, layer: l.id }))
+                // Into a hidden layer it would vanish while selected: that layer is shown again.
+                appStore.set({ hiddenLayers: appStore.get().hiddenLayers.filter((h) => h !== l.id) })
+              }}
+            />
+          ))}
+        </div>
+      )}
+    </Popover>
   )
 }
 
@@ -350,22 +390,27 @@ const SelectionInfo = ({ ids }: { ids: readonly string[] }) => {
           <PencilPicker
             pencil={samePencil ? first.pencil : { width: 0.35, hardness: 'H' }}
             onChange={(pencil) => documentActions.update(geometry.map((s) => s.id), (s) => ({ ...s, pencil }))}
+            heading={false}
           />
         </>
       )}
       <Divider />
-      <LayerChoice ids={ids} layers={selected.map((s) => s.layer)} />
-      <Divider />
-      <TextButton
-        icon={<Trash2 size={14} />}
-        tone="danger"
-        onClick={() => {
-          documentActions.remove(ids)
-          appStore.set({ selection: [] })
-        }}
-      >
-        Borrar
-      </TextButton>
+      <div className="flex items-center gap-0.5">
+        <LayerChoice ids={ids} layers={selected.map((s) => s.layer)} />
+        <Tooltip label="Borrar" shortcut="Supr" side="top">
+          <button
+            type="button"
+            aria-label="Borrar"
+            onClick={() => {
+              documentActions.remove(ids)
+              appStore.set({ selection: [] })
+            }}
+            className="grid h-7 w-7 place-items-center rounded-lg text-ink/70 outline-none transition-colors hover:bg-red-50 hover:text-red-600 focus-visible:ring-2 focus-visible:ring-accent/40"
+          >
+            <Trash2 size={15} />
+          </button>
+        </Tooltip>
+      </div>
     </>
   )
 }
@@ -457,7 +502,7 @@ export const ContextBar = () => {
       </div>
       {(showSelection || showPencil || measureTool || hatching) && (
         // Clear of the credit on the left and the pages on the right: a long bar goes on two lines.
-        <div className="float pointer-events-auto flex max-w-[calc(100%-440px)] flex-wrap items-center justify-center gap-x-3 gap-y-1.5 rounded-2xl px-3 py-2 max-sm:max-w-full max-sm:gap-2 max-sm:px-2 short:max-w-full" data-testid="context-bar">
+        <div className="float pointer-events-auto flex max-w-[calc(100%-400px)] flex-wrap items-center justify-center gap-x-2.5 gap-y-1.5 rounded-2xl px-3 py-2 max-sm:max-w-full max-sm:gap-2 max-sm:px-2 short:max-w-full" data-testid="context-bar">
           {showSelection ? (
             <SelectionInfo ids={selection} />
           ) : measureTool ? (

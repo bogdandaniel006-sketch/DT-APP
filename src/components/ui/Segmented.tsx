@@ -1,6 +1,10 @@
+import type { ReactNode } from 'react'
+
 interface Option<T extends string | number> {
   value: T
-  label: string
+  /** Words, or a small drawing; a drawing needs `hint`, which says it in words. */
+  label: ReactNode
+  hint?: string
 }
 
 interface Props<T extends string | number> {
@@ -20,6 +24,8 @@ export const Segmented = <T extends string | number>({ value, options, onChange,
           type="button"
           role="radio"
           aria-checked={active}
+          aria-label={o.hint}
+          title={o.hint}
           onClick={() => onChange(o.value)}
           className={`rounded-[7px] px-2.5 py-1 text-xs font-medium tabular-nums outline-none transition-all focus-visible:ring-2 focus-visible:ring-accent/40 ${
             active ? 'bg-white text-accent shadow-[0_1px_4px_rgba(15,23,42,0.12)]' : 'text-muted hover:text-ink'
