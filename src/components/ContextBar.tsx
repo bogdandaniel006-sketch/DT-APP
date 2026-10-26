@@ -6,7 +6,7 @@ import { useStore } from '../state/createStore'
 import { documentActions, documentStore } from '../state/documentStore'
 import { shortcutLabel, shortcutStore } from '../state/shortcuts'
 import { toolTick, tools } from '../tools/registry'
-import { isGeometry, isHatch, isText, type ConicType, type Pencil, type PencilHardness, type PencilWidth, type ToolId } from '../types'
+import { isGeometry, isHatch, isText, type ConicType, type LayerId, type Pencil, type PencilHardness, type PencilWidth, type ToolId } from '../types'
 import { distance } from '../geometry/primitives'
 import { pageOffset } from '../geometry/layout'
 import { MAX_TEXT_LENGTH } from '../geometry/text'
@@ -14,7 +14,7 @@ import { add } from '../geometry/vec'
 import { MAX_NAME_LENGTH, normalizePointName } from '../utils/pointNames'
 import { formatCoordinate, formatLength } from '../utils/format'
 import { dimensionFigure } from '../canvas/dimension'
-import { PENCIL_COLORS } from '../canvas/style'
+import { LAYERS, PENCIL_COLORS } from '../canvas/style'
 import { HATCH_ANGLES } from '../geometry/hatch'
 import { hatchStore, relineHatches } from '../tools/hatchTool'
 import { conicStore } from '../tools/conicTool'
@@ -260,6 +260,30 @@ const Info = ({ children }: { children: ReactNode }) => (
   </span>
 )
 
+/**
+ * The layer of what is selected, and moving it to another. Only the layer changes: each stroke
+ * keeps its pencil. With strokes from several layers none is marked until one is picked.
+ */
+const LayerChoice = ({ ids, layers }: { ids: readonly string[]; layers: readonly LayerId[] }) => {
+  const shared = layers.every((l) => l === layers[0]) ? layers[0] : undefined
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="text-[11px] font-medium uppercase tracking-wider text-faint">Capa</span>
+      <Segmented<LayerId | 'varias'>
+        label="Capa de la selección"
+        value={shared ?? 'varias'}
+        options={LAYERS.map((l) => ({ value: l.id, label: l.name }))}
+        onChange={(layer) => {
+          if (layer === 'varias') return
+          documentActions.update(ids, (s) => ({ ...s, layer }))
+          // Into a hidden layer it would vanish while selected: that layer is shown again.
+          appStore.set({ hiddenLayers: appStore.get().hiddenLayers.filter((h) => h !== layer) })
+        }}
+      />
+    </div>
+  )
+}
+
 const SelectionInfo = ({ ids }: { ids: readonly string[] }) => {
   const shapes = useStore(documentStore, (s) => s.shapes)
   const selected = shapes.filter((s) => ids.includes(s.id))
@@ -329,6 +353,8 @@ const SelectionInfo = ({ ids }: { ids: readonly string[] }) => {
           />
         </>
       )}
+      <Divider />
+      <LayerChoice ids={ids} layers={selected.map((s) => s.layer)} />
       <Divider />
       <TextButton
         icon={<Trash2 size={14} />}
@@ -430,7 +456,8 @@ export const ContextBar = () => {
         <ExactEntry />
       </div>
       {(showSelection || showPencil || measureTool || hatching) && (
-        <div className="float pointer-events-auto flex items-center gap-3 rounded-2xl px-3 py-2 max-sm:max-w-full max-sm:flex-wrap max-sm:justify-center max-sm:gap-2 max-sm:px-2" data-testid="context-bar">
+        // Clear of the credit on the left and the pages on the right: a long bar goes on two lines.
+        <div className="float pointer-events-auto flex max-w-[calc(100%-440px)] flex-wrap items-center justify-center gap-x-3 gap-y-1.5 rounded-2xl px-3 py-2 max-sm:max-w-full max-sm:gap-2 max-sm:px-2 short:max-w-full" data-testid="context-bar">
           {showSelection ? (
             <SelectionInfo ids={selection} />
           ) : measureTool ? (

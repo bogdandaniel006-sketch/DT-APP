@@ -15,6 +15,7 @@ import { useLockBrowserView } from './hooks/useLockBrowserView'
 import { loadPdfFile, openFromPanel, openHandedProject, restoreLastSession } from './state/actions'
 import { appStore } from './state/appStore'
 import { useStore } from './state/createStore'
+import { copySelection, pasteText } from './state/clipboard'
 import { watchDrawing } from './state/sharing'
 
 const droppedFile = (e: DragEvent) =>
@@ -49,17 +50,35 @@ export const App = () => {
     })
   }, [])
 
-  // Ctrl+V with a picture in the clipboard opens it, from the start screen or from the desk.
+  // Ctrl+C / Ctrl+X take the selected strokes; Ctrl+V pastes them, or opens a picture copied since,
+  // from the start screen or from the desk. Boxes being typed in keep their own copy and paste.
   useEffect(() => {
+    const typing = (e: Event) =>
+      e.target instanceof HTMLElement && (e.target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName))
+    const onCopy = (e: ClipboardEvent) => {
+      if (typing(e) || appStore.get().phase !== 'ready' || !e.clipboardData) return
+      if (copySelection(e.clipboardData, e.type === 'cut')) e.preventDefault()
+    }
     const onPaste = (e: ClipboardEvent) => {
+      if (typing(e)) return
+      if (appStore.get().phase === 'ready' && pasteText(e.clipboardData?.getData('text/plain') ?? '')) {
+        e.preventDefault()
+        return
+      }
       const image = [...(e.clipboardData?.files ?? [])].find((f) => f.type.startsWith('image/'))
       if (!image) return
       e.preventDefault()
       const extension = image.type.split('/')[1]?.replace('jpeg', 'jpg') ?? 'png'
       void loadPdfFile(new File([image], `Imagen pegada.${extension}`, { type: image.type }))
     }
+    window.addEventListener('copy', onCopy)
+    window.addEventListener('cut', onCopy)
     window.addEventListener('paste', onPaste)
-    return () => window.removeEventListener('paste', onPaste)
+    return () => {
+      window.removeEventListener('copy', onCopy)
+      window.removeEventListener('cut', onCopy)
+      window.removeEventListener('paste', onPaste)
+    }
   }, [])
 
   useEffect(() => {

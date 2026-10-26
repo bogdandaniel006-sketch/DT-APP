@@ -38,6 +38,8 @@ const FIXED: { title: string; controls: Control[] }[] = [
     controls: [
       { keys: 'Shift + clic', action: 'Añade o quita un trazo de la selección' },
       { keys: 'Arrastrar', action: 'Selecciona varios trazos con un recuadro' },
+      { keys: 'Ctrl C · Ctrl X', action: 'Copia o corta los trazos seleccionados' },
+      { keys: 'Ctrl V', action: 'Pega los trazos donde está el cursor, también en otra pestaña' },
       { keys: 'Ctrl D', action: 'Duplica los trazos seleccionados' },
       { keys: 'Supr', action: 'Borra la selección; sin selección, herramienta Borrar' },
     ],

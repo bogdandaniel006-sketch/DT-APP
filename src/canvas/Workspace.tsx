@@ -9,6 +9,7 @@ import { add, dot, normalize, scale, sub } from '../geometry/vec'
 import { detectedLineAt, detectedNear, detectionStore } from '../pdf/detect'
 import { appStore, viewActions } from '../state/appStore'
 import { useStore } from '../state/createStore'
+import { setDeskCursor } from '../state/clipboard'
 import { documentActions, documentStore } from '../state/documentStore'
 import { instrumentHandles } from '../tools/instrumentTool'
 import { bumpTools, setDeskApi, toolTick, tools } from '../tools/registry'
@@ -352,6 +353,7 @@ export const Workspace = ({ spaceDown }: { spaceDown: boolean }) => {
     if (drawing.current !== e.pointerId) return
     const p = pointer(e)
     lastPointer.current = p
+    setDeskCursor(p.world)
     setCursorAt(p.screen)
     tool.move(p, api)
     bumpTools()
@@ -446,6 +448,7 @@ export const Workspace = ({ spaceDown }: { spaceDown: boolean }) => {
   const onPointerMove = (e: ReactPointerEvent) => {
     if (e.pointerType === 'touch' && touchOn()) return touchMove(e)
     lastPointer.current = pointer(e)
+    setDeskCursor(lastPointer.current.world)
     if (pan.current) {
       viewActions.pan(e.clientX - pan.current.last.x, e.clientY - pan.current.last.y)
       pan.current.last = { x: e.clientX, y: e.clientY }
@@ -492,7 +495,11 @@ export const Workspace = ({ spaceDown }: { spaceDown: boolean }) => {
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
-      onPointerLeave={() => setCursorAt(null)}
+      onPointerLeave={() => {
+        setCursorAt(null)
+        // Off the desk, strokes are pasted in the middle of what is shown.
+        setDeskCursor(null)
+      }}
       onContextMenu={(e) => e.preventDefault()}
       data-testid="workspace"
     >
