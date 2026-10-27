@@ -33,7 +33,7 @@ export const TOOLS: readonly ToolDef[] = [
   { id: 'text', label: 'Texto', icon: <Type size={18} /> },
   { id: 'freehand', label: 'Mano alzada: escribir y dibujar libre', icon: <PencilLine size={18} /> },
   { id: 'hatch', label: 'Rayado de cortes y secciones', icon: <HatchIcon /> },
-  { id: 'format', label: 'Copiar formato: lleva el lápiz, el color y la capa de un trazo a otros', icon: <PaintRoller size={18} /> },
+  { id: 'format', label: 'Copiar formato: lleva el lápiz y el color de un trazo a otros', icon: <PaintRoller size={18} /> },
   { id: 'eraser', label: 'Borrar', shortcut: 'Supr', icon: <Eraser size={18} /> },
 ]
 
