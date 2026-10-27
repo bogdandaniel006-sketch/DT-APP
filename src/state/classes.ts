@@ -53,6 +53,23 @@ export interface SentSheet {
   fecha: number
 }
 
+/** A pupil on the class list. `clave` is a print of their key: it tells them apart, it does not let anyone act as them. */
+export interface ListedPupil {
+  clave: string
+  nombre: string
+  unido: number
+}
+
+/**
+ * Class-list order: by first name, and by the initial of the surname when names are alike
+ * ("Ana G." before "Ana M."), in Spanish alphabetical order.
+ */
+export const byName = (a: string, b: string) => {
+  const [firstA, ...restA] = a.trim().split(/\s+/)
+  const [firstB, ...restB] = b.trim().split(/\s+/)
+  return (firstA ?? '').localeCompare(firstB ?? '', 'es', { sensitivity: 'base' }) || restA.join(' ').localeCompare(restB.join(' '), 'es', { sensitivity: 'base' })
+}
+
 export interface TeacherView {
   nombre: string
   profesor: string
@@ -63,6 +80,8 @@ export interface TeacherView {
   espacio: number
   ejercicios: ClassExercise[]
   entregas: SentSheet[]
+  /** Everyone who joined (and anyone who sent before there was a list). */
+  lista: ListedPupil[]
 }
 
 export interface PupilView {
@@ -140,12 +159,16 @@ export const teacherView = async (code: string): Promise<TeacherView> => {
 
 export const pupilView = (code: string) => request('alumno', { code }).then((r) => json<PupilView>(r))
 
+/** Puts the pupil on the class list, so the teacher sees them even before they send anything. */
+const enrol = (room: PupilClass) => request('unirme', { code: room.code, key: room.key, body: JSON.stringify({ nombre: room.pupil }) })
+
 /** Joins a class with its pupils' code, under a first name and the initial of the surname. */
 export const joinClass = async (code: string, pupil: string): Promise<PupilClass> => {
   const view = await pupilView(code)
   const previous = classStore.get().pupil.find((c) => c.code === view.alumnos)
   const room = { code: view.alumnos, name: view.nombre, pupil, key: previous?.key ?? newId() }
   remember({ pupil: [room, ...classStore.get().pupil.filter((c) => c.code !== room.code)] })
+  await enrol(room).catch(() => undefined)
   // What was there before joining is not news; the panel still shows it.
   if (!seenIn(room.code)) markSeen(room.code, view.ejercicios.map((x) => x.id))
   return room
@@ -271,11 +294,18 @@ export interface News {
 
 export const newsStore = createStore<{ news: News[] }>({ news: [] })
 
+/** Classes this page has already put the pupil on the list of (those joined before there was one). */
+const enrolled = new Set<string>()
+
 /** Asks each class kept here what is new. Quiet when offline or when a class is gone. */
 export const checkNews = async () => {
   const news: News[] = []
   const { teacher, pupil } = classStore.get()
   for (const room of pupil) {
+    if (!enrolled.has(room.code)) {
+      enrolled.add(room.code)
+      void enrol(room).catch(() => enrolled.delete(room.code))
+    }
     try {
       const view = await request('alumno', { code: room.code }).then((r) => json<PupilView>(r))
       const seen = seenIn(room.code)

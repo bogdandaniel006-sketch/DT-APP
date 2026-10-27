@@ -16,6 +16,7 @@ import {
   mySheet,
   seenIn,
   type MySheet,
+  byName,
   classStore,
   cleanCode,
   createClass,
@@ -53,6 +54,8 @@ type Screen =
   | { kind: 'join' }
   | { kind: 'teacher'; code: string; fresh?: boolean }
   | { kind: 'pupil'; room: PupilClass }
+  | { kind: 'pupils'; code: string }
+  | { kind: 'pupil-detail'; code: string; clave: string; name: string }
 
 /** The classes window: closed, or open on a screen. */
 export const panelStore = createStore<{ screen: Screen | null }>({ screen: null })
@@ -385,9 +388,6 @@ const Teacher = ({ code, fresh, go, close }: { code: string; fresh?: boolean; go
       <p className="text-[13px] text-muted">Abriendo la clase…</p>
     )
 
-  // The same name sent from two devices: perhaps two pupils with the same name, perhaps one passing for another.
-  const keysByName = new Map<string, Set<string>>()
-  for (const s of view.entregas) keysByName.set(s.alumno, (keysByName.get(s.alumno) ?? new Set()).add(s.clave))
   const sentOn = (id: string) => view.entregas.filter((s) => s.ejercicio === id).length
   const pupils = new Set(view.entregas.map((s) => s.clave)).size
 
@@ -402,6 +402,10 @@ const Teacher = ({ code, fresh, go, close }: { code: string; fresh?: boolean; go
         <CodeBox label="Código para los alumnos" code={view.alumnos} note="Dáselo a tus alumnos para que se unan." />
         <CodeBox label="Tu código de profesor" code={view.profesor} note="Solo para ti: abre la clase en otro navegador." />
       </div>
+      <button type="button" onClick={() => go({ kind: 'pupils', code })} className={`${PRIMARY} mt-3 w-full`}>
+        <Users size={16} />
+        Ver todos tus alumnos · {view.lista.length}
+      </button>
 
       <SectionTitle
         action={
@@ -466,45 +470,23 @@ const Teacher = ({ code, fresh, go, close }: { code: string; fresh?: boolean; go
         Láminas enviadas · {view.entregas.length}
         {pupils > 0 && ` de ${pupils} ${pupils === 1 ? 'alumno' : 'alumnos'}`}
       </SectionTitle>
-      {view.entregas.length === 0 ? (
-        <p className="text-[12.5px] text-muted">Aquí aparecerán las láminas que te envíen tus alumnos.</p>
+      {view.entregas.length === 0 && view.lista.length === 0 ? (
+        <p className="text-[12.5px] text-muted">Aquí aparecerán las láminas que te envíen tus alumnos, ordenadas por alumno o por ejercicio.</p>
       ) : (
-        <ul className="flex flex-col">
-          {view.entregas.map((s) => (
-            <li key={s.id} className="flex items-center gap-2 border-b border-black/[0.05] py-1.5 last:border-0">
-              <span className="min-w-0 flex-1">
-                <span className="flex items-center gap-1.5 text-[13.5px] text-ink">
-                  <span className="truncate">
-                    <b className="font-semibold">{s.alumno}</b> · {s.titulo}
-                  </span>
-                  {arrived.has(s.id) && <span className="shrink-0 rounded-full bg-accent px-1.5 py-px text-[10.5px] font-semibold text-white">Nueva</span>}
-                </span>
-                <span className="text-[11.5px] text-muted">
-                  {when(s.fecha)}
-                  {(keysByName.get(s.alumno)?.size ?? 0) > 1 && (
-                    <span className="ml-1.5 text-amber-600" title="Hay láminas con este nombre enviadas desde dispositivos distintos">
-                      · mismo nombre desde otro dispositivo
-                    </span>
-                  )}
-                </span>
-              </span>
-              <button type="button" className={SOFT} onClick={() => void openSent(s)} disabled={busy !== null}>
-                {busy === 'abrir' + s.id ? 'Abriendo…' : 'Abrir'}
-              </button>
-              <IconButton
-                label="Borrar la lámina"
-                onClick={() => {
-                  if (window.confirm(`¿Borrar la lámina «${s.titulo}» de ${s.alumno}?`)) void run('borrar' + s.id, async () => {
-                    await deleteSent(code, s.id)
-                    await reload()
-                  })
-                }}
-              >
-                <Trash2 size={15} />
-              </IconButton>
-            </li>
-          ))}
-        </ul>
+        <SentGroups
+          view={view}
+          arrived={arrived}
+          busy={busy}
+          onOpen={(s) => void openSent(s)}
+          onDelete={(s) => {
+            if (window.confirm(`¿Borrar la lámina «${s.titulo}» de ${s.alumno}?`))
+              void run('borrar' + s.id, async () => {
+                await deleteSent(code, s.id)
+                await reload()
+              })
+          }}
+          onPupil={(clave, name) => go({ kind: 'pupil-detail', code, clave, name })}
+        />
       )}
       <div className="mt-2">
         <Problem>{error}</Problem>
@@ -706,6 +688,284 @@ const Pupil = ({ room, go, close }: { room: PupilClass; go: (s: Screen) => void;
   )
 }
 
+/** The pupils of a class in class-list order, each with what they sent. */
+const pupilsOf = (view: TeacherView) =>
+  [...view.lista]
+    .sort((a, b) => byName(a.nombre, b.nombre))
+    .map((p) => ({ ...p, sheets: view.entregas.filter((s) => s.clave === p.clave) }))
+
+/** One sent sheet in a teacher's list: open it, or delete it. */
+const SentRow = ({
+  sheet,
+  label,
+  isNew,
+  busy,
+  onOpen,
+  onDelete,
+}: {
+  sheet: SentSheet
+  label: ReactNode
+  isNew: boolean
+  busy: string | null
+  onOpen: () => void
+  onDelete: () => void
+}) => (
+  <li className="flex items-center gap-2 py-1.5">
+    <span className="min-w-0 flex-1">
+      <span className="flex items-center gap-1.5 text-[13px] text-ink">
+        <span className="truncate">{label}</span>
+        {isNew && <NewBadge>Nueva</NewBadge>}
+      </span>
+      <span className="text-[11.5px] text-muted">{when(sheet.fecha)}</span>
+    </span>
+    <button type="button" className={SOFT} onClick={onOpen} disabled={busy !== null}>
+      {busy === 'abrir' + sheet.id ? 'Abriendo…' : 'Abrir'}
+    </button>
+    <IconButton label="Borrar la lámina" onClick={onDelete}>
+      <Trash2 size={15} />
+    </IconButton>
+  </li>
+)
+
+/** A group that folds: a pupil or an exercise, with its sheets inside. */
+const Group = ({ title, detail, open, isNew, children }: { title: ReactNode; detail: ReactNode; open?: boolean; isNew?: boolean; children: ReactNode }) => (
+  <details open={open} className="group/fold border-b border-black/[0.05] last:border-0">
+    <summary className="flex cursor-pointer list-none items-center gap-2 py-2 outline-none [&::-webkit-details-marker]:hidden">
+      <ChevronDown size={15} className="shrink-0 -rotate-90 text-faint transition-transform group-open/fold:rotate-0" />
+      <span className="min-w-0 flex-1 truncate text-[13.5px] font-medium text-ink">{title}</span>
+      {isNew && <span className="h-2 w-2 shrink-0 rounded-full bg-accent" title="Hay láminas nuevas" />}
+      <span className="shrink-0 text-[11.5px] text-muted">{detail}</span>
+    </summary>
+    <div className="pb-2 pl-6">{children}</div>
+  </details>
+)
+
+/** Sheets sent to a class, by pupil (in class-list order) or by exercise (with who is missing). */
+const SentGroups = ({
+  view,
+  arrived,
+  busy,
+  onOpen,
+  onDelete,
+  onPupil,
+}: {
+  view: TeacherView
+  arrived: ReadonlySet<string>
+  busy: string | null
+  onOpen: (s: SentSheet) => void
+  onDelete: (s: SentSheet) => void
+  onPupil: (clave: string, nombre: string) => void
+}) => {
+  const [by, setBy] = useState<'alumno' | 'ejercicio'>('alumno')
+  const pupils = pupilsOf(view)
+  const row = (s: SentSheet, label: ReactNode) => (
+    <SentRow key={s.id} sheet={s} label={label} isNew={arrived.has(s.id)} busy={busy} onOpen={() => onOpen(s)} onDelete={() => onDelete(s)} />
+  )
+  const free = view.entregas.filter((s) => !s.ejercicio).sort((a, b) => byName(a.alumno, b.alumno))
+
+  return (
+    <>
+      <div className="mb-1 flex gap-1 rounded-xl bg-black/[0.04] p-1">
+        {(['alumno', 'ejercicio'] as const).map((k) => (
+          <button
+            key={k}
+            type="button"
+            onClick={() => setBy(k)}
+            className={`h-8 flex-1 rounded-lg text-[12.5px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent/40 ${
+              by === k ? 'bg-white text-ink shadow-[0_1px_3px_rgba(15,23,42,0.1)]' : 'text-muted hover:text-ink'
+            }`}
+          >
+            {k === 'alumno' ? 'Por alumno' : 'Por ejercicio'}
+          </button>
+        ))}
+      </div>
+      {by === 'alumno' ? (
+        <div>
+          {pupils.map((p) => (
+            <Group
+              key={p.clave}
+              title={p.nombre}
+              isNew={p.sheets.some((s) => arrived.has(s.id))}
+              detail={p.sheets.length === 0 ? 'nada enviado' : p.sheets.length === 1 ? '1 lámina' : `${p.sheets.length} láminas`}
+            >
+              {p.sheets.length === 0 ? (
+                <p className="py-1 text-[12px] text-muted">Todavía no ha enviado nada.</p>
+              ) : (
+                <ul>{p.sheets.map((s) => row(s, s.titulo))}</ul>
+              )}
+              <button type="button" className={`${QUIET} -ml-2.5`} onClick={() => onPupil(p.clave, p.nombre)}>
+                Ver la ficha de {p.nombre}
+              </button>
+            </Group>
+          ))}
+        </div>
+      ) : (
+        <div>
+          {view.ejercicios.map((x) => {
+            const on = view.entregas.filter((s) => s.ejercicio === x.id).sort((a, b) => byName(a.alumno, b.alumno))
+            const missing = pupils.filter((p) => !on.some((s) => s.clave === p.clave))
+            return (
+              <Group key={x.id} title={x.titulo} isNew={on.some((s) => arrived.has(s.id))} detail={`${on.length} de ${pupils.length} enviadas`}>
+                {on.length > 0 && <ul>{on.map((s) => row(s, <b className="font-semibold">{s.alumno}</b>))}</ul>}
+                {missing.length > 0 && (
+                  <p className="py-1 text-[12px] leading-snug text-muted">
+                    <span className="font-medium text-ink/70">Faltan:</span> {missing.map((p) => p.nombre).join(', ')}
+                  </p>
+                )}
+              </Group>
+            )
+          })}
+          {free.length > 0 && (
+            <Group title="Otras láminas" isNew={free.some((s) => arrived.has(s.id))} detail={free.length === 1 ? '1 lámina' : `${free.length} láminas`}>
+              <ul>
+                {free.map((s) =>
+                  row(
+                    s,
+                    <>
+                      <b className="font-semibold">{s.alumno}</b> · {s.titulo}
+                    </>,
+                  ),
+                )}
+              </ul>
+            </Group>
+          )}
+        </div>
+      )}
+    </>
+  )
+}
+
+/** Shared by the class-list screens: the class as the teacher sees it, and acting on its sheets. */
+const useTeacherClass = (code: string) => {
+  const [view, setView] = useState<TeacherView | null>(null)
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState<string | null>(null)
+  const news = useStore(newsStore, (s) => s.news)
+  const fresh = new Set(news.filter((n) => n.code === code).map((n) => n.id))
+  const reload = () => teacherView(code).then(setView, (err: unknown) => setError(message(err)))
+  useEffect(() => {
+    void reload()
+  }, [code])
+  const run = async (what: string, job: () => Promise<unknown>) => {
+    setBusy(what)
+    setError('')
+    try {
+      await job()
+    } catch (err) {
+      setError(message(err))
+    } finally {
+      setBusy(null)
+    }
+  }
+  const open = (s: SentSheet) =>
+    run('abrir' + s.id, async () => {
+      await openSentSheet(code, s)
+      closePanel()
+    })
+  const remove = (s: SentSheet) => {
+    if (window.confirm(`¿Borrar la lámina «${s.titulo}» de ${s.alumno}?`))
+      void run('borrar' + s.id, async () => {
+        await deleteSent(code, s.id)
+        await reload()
+      })
+  }
+  return { view, error, busy, fresh, open, remove }
+}
+
+/** Every pupil of the class, in class-list order, with how far each has got. */
+const TeacherPupils = ({ code, go }: { code: string; go: (s: Screen) => void }) => {
+  const { view, error, fresh } = useTeacherClass(code)
+  if (!view) return error ? <Problem>{error}</Problem> : <p className="text-[13px] text-muted">Abriendo la clase…</p>
+  const pupils = pupilsOf(view)
+  const exercises = view.ejercicios.length
+  if (!pupils.length)
+    return (
+      <p className="text-[13px] leading-relaxed text-muted">
+        Todavía no se ha unido nadie. Dales a tus alumnos el código <b className="font-mono text-ink">{showCode(view.alumnos)}</b>: al unirse aparecerán aquí,
+        por orden de lista.
+      </p>
+    )
+  return (
+    <>
+      <p className="mb-2 text-[12.5px] text-muted">
+        {pupils.length === 1 ? '1 alumno' : `${pupils.length} alumnos`} por orden de lista. Pulsa en uno para ver todo lo que te ha enviado.
+      </p>
+      <ul className="flex flex-col">
+        {pupils.map((p) => {
+          const done = new Set(p.sheets.filter((s) => s.ejercicio).map((s) => s.ejercicio)).size
+          const last = p.sheets[0]
+          return (
+            <li key={p.clave}>
+              <button
+                type="button"
+                onClick={() => go({ kind: 'pupil-detail', code, clave: p.clave, name: p.nombre })}
+                className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left outline-none transition-colors hover:bg-accent-soft focus-visible:ring-2 focus-visible:ring-accent/40"
+              >
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent-soft text-[13px] font-semibold text-accent">{p.nombre.slice(0, 1).toUpperCase()}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center gap-1.5 text-[13.5px] font-medium text-ink">
+                    <span className="truncate">{p.nombre}</span>
+                    {p.sheets.some((s) => fresh.has(s.id)) && <NewBadge>Nueva</NewBadge>}
+                  </span>
+                  <span className="text-[11.5px] text-muted">
+                    {exercises > 0 ? `${done} de ${exercises} ejercicios` : 'Sin ejercicios aún'} · {p.sheets.length === 1 ? '1 lámina' : `${p.sheets.length} láminas`}
+                    {last ? ` · última ${when(last.fecha)}` : ''}
+                  </span>
+                </span>
+                <ChevronDown size={15} className="shrink-0 -rotate-90 text-faint" />
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+    </>
+  )
+}
+
+/** One pupil: each exercise of the class, sent or not, and the other sheets they sent. */
+const TeacherPupilDetail = ({ code, clave }: { code: string; clave: string }) => {
+  const { view, error, busy, fresh, open, remove } = useTeacherClass(code)
+  if (!view) return error ? <Problem>{error}</Problem> : <p className="text-[13px] text-muted">Abriendo…</p>
+  const pupil = view.lista.find((p) => p.clave === clave)
+  const sheets = view.entregas.filter((s) => s.clave === clave)
+  const free = sheets.filter((s) => !s.ejercicio)
+  const done = view.ejercicios.filter((x) => sheets.some((s) => s.ejercicio === x.id)).length
+  const row = (s: SentSheet, label: ReactNode) => <SentRow key={s.id} sheet={s} label={label} isNew={fresh.has(s.id)} busy={busy} onOpen={() => void open(s)} onDelete={() => remove(s)} />
+
+  return (
+    <>
+      <div className="flex gap-2">
+        <Stat value={`${done}/${view.ejercicios.length}`} label="ejercicios enviados" />
+        <Stat value={sheets.length} label={sheets.length === 1 ? 'lámina en total' : 'láminas en total'} />
+      </div>
+      {pupil && <p className="mt-2 text-[11.5px] text-muted">En la clase desde el {when(pupil.unido)}</p>}
+      <SectionTitle>Ejercicios de la clase</SectionTitle>
+      {view.ejercicios.length === 0 ? (
+        <p className="text-[12.5px] text-muted">Todavía no has puesto ejercicios.</p>
+      ) : (
+        <ul className="flex flex-col divide-y divide-black/[0.05]">
+          {view.ejercicios.map((x) => {
+            const s = sheets.find((e) => e.ejercicio === x.id)
+            return s ? (
+              row(s, x.titulo)
+            ) : (
+              <li key={x.id} className="flex items-center gap-2 py-1.5">
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[13px] text-ink/70">{x.titulo}</span>
+                  <span className="text-[11.5px] text-amber-600 dark:text-amber-400">Sin enviar</span>
+                </span>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+      <SectionTitle>Otras láminas · {free.length}</SectionTitle>
+      {free.length === 0 ? <p className="text-[12.5px] text-muted">No te ha enviado otras láminas.</p> : <ul className="flex flex-col divide-y divide-black/[0.05]">{free.map((s) => row(s, s.titulo))}</ul>}
+      <Problem>{error}</Problem>
+    </>
+  )
+}
+
 const TITLES: Record<Screen['kind'], string> = {
   home: 'Clases',
   create: 'Crear una clase',
@@ -713,6 +973,8 @@ const TITLES: Record<Screen['kind'], string> = {
   join: 'Unirme a una clase',
   teacher: 'Clase',
   pupil: 'Clase',
+  pupils: 'Tus alumnos',
+  'pupil-detail': 'Alumno',
 }
 
 /** Classes: opened from the start screen only. */
@@ -737,7 +999,7 @@ export const ClassesPanel = () => {
 
   if (!screen) return null
   const name =
-    screen.kind === 'teacher' ? (teacher.find((c) => c.code === screen.code)?.name ?? 'Clase') : screen.kind === 'pupil' ? (pupil.find((c) => c.code === screen.room.code)?.name ?? screen.room.name) : TITLES[screen.kind]
+    screen.kind === 'pupil-detail' ? screen.name : screen.kind === 'teacher' ? (teacher.find((c) => c.code === screen.code)?.name ?? 'Clase') : screen.kind === 'pupil' ? (pupil.find((c) => c.code === screen.room.code)?.name ?? screen.room.name) : TITLES[screen.kind]
 
   return createPortal(
     <div
@@ -752,13 +1014,26 @@ export const ClassesPanel = () => {
       >
         <header className="flex items-center gap-2 px-4 pb-2 pt-4 sm:px-6 sm:pt-5">
           {screen.kind !== 'home' && (
-            <IconButton label="Volver" onClick={() => setScreen({ kind: 'home' })}>
+            <IconButton
+              label="Volver"
+              onClick={() =>
+                setScreen(
+                  screen.kind === 'pupils' ? { kind: 'teacher', code: screen.code } : screen.kind === 'pupil-detail' ? { kind: 'pupils', code: screen.code } : { kind: 'home' },
+                )
+              }
+            >
               <ArrowLeft size={18} />
             </IconButton>
           )}
           <div className="min-w-0 flex-1">
             <p className="truncate text-[11px] font-medium uppercase tracking-wider text-faint">
-              {screen.kind === 'teacher' ? 'Tu clase · profesor' : screen.kind === 'pupil' ? 'Tu clase · alumno' : 'Para profesores y alumnos'}
+              {screen.kind === 'teacher'
+                ? 'Tu clase · profesor'
+                : screen.kind === 'pupil'
+                  ? 'Tu clase · alumno'
+                  : screen.kind === 'pupils' || screen.kind === 'pupil-detail'
+                    ? (teacher.find((c) => c.code === screen.code)?.name ?? 'Tu clase')
+                    : 'Para profesores y alumnos'}
             </p>
             <h2 className="truncate text-[20px] font-semibold tracking-[-0.02em] text-ink">{name}</h2>
           </div>
@@ -772,6 +1047,8 @@ export const ClassesPanel = () => {
           {screen.kind === 'teacher-login' && <TeacherLogin go={setScreen} />}
           {screen.kind === 'join' && <Join go={setScreen} />}
           {screen.kind === 'teacher' && <Teacher key={screen.code} code={screen.code} fresh={screen.fresh} go={setScreen} close={closePanel} />}
+          {screen.kind === 'pupils' && <TeacherPupils key={screen.code} code={screen.code} go={setScreen} />}
+          {screen.kind === 'pupil-detail' && <TeacherPupilDetail key={screen.clave} code={screen.code} clave={screen.clave} />}
           {screen.kind === 'pupil' && <Pupil key={screen.room.code} room={screen.room} go={setScreen} close={closePanel} />}
         </div>
       </section>
@@ -829,7 +1106,7 @@ const TeacherSummary = ({ code }: { code: string }) => {
   }, [code, news.length, panelOpen])
 
   if (!view) return error ? <Problem>{error}</Problem> : <p className="text-[13px] text-muted">Abriendo la clase…</p>
-  const pupils = new Set(view.entregas.map((s) => s.clave)).size
+  const pupils = view.lista.length
 
   return (
     <>
@@ -837,7 +1114,7 @@ const TeacherSummary = ({ code }: { code: string }) => {
       <div className="mt-2 flex gap-2">
         <Stat value={view.ejercicios.length} label={view.ejercicios.length === 1 ? 'ejercicio' : 'ejercicios'} />
         <Stat value={view.entregas.length} label={view.entregas.length === 1 ? 'lámina recibida' : 'láminas recibidas'} />
-        <Stat value={pupils} label={pupils === 1 ? 'alumno ha enviado' : 'alumnos han enviado'} />
+        <Stat value={pupils} label={pupils === 1 ? 'alumno' : 'alumnos'} />
       </div>
       <p className="mb-1 mt-4 text-[11px] font-medium uppercase tracking-wider text-faint">Últimas láminas recibidas</p>
       {view.entregas.length === 0 ? (
@@ -874,10 +1151,20 @@ const TeacherSummary = ({ code }: { code: string }) => {
         </ul>
       )}
       <Problem>{error}</Problem>
-      <button type="button" onClick={() => openPanel({ kind: 'teacher', code })} className={`${PRIMARY} mt-4 w-full`}>
-        <GraduationCap size={16} />
-        Abrir la clase: ejercicios y láminas
-      </button>
+      <div className="mt-4 grid gap-2">
+        <button type="button" onClick={() => openPanel({ kind: 'pupils', code })} className={`${PRIMARY} w-full`}>
+          <Users size={16} />
+          Ver todos tus alumnos · {view.lista.length}
+        </button>
+        <button
+          type="button"
+          onClick={() => openPanel({ kind: 'teacher', code })}
+          className="flex h-10 items-center justify-center gap-2 rounded-xl bg-accent-soft px-4 text-[13.5px] font-medium text-accent outline-none transition-colors hover:bg-accent/20 focus-visible:ring-2 focus-visible:ring-accent/40"
+        >
+          <GraduationCap size={16} />
+          Abrir la clase: ejercicios y láminas
+        </button>
+      </div>
     </>
   )
 }

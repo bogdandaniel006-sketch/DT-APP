@@ -15,6 +15,7 @@
  *   POST /clases/entrega/<id>         (teacher's code)                → the sheet as a project file
  *   POST /clases/borrar-entrega/<id>  (teacher's code)
  *   POST /clases/borrar               (teacher's code)                the whole class, for good
+ *   POST /clases/unirme               (pupils' code, X-Clave) { nombre }  the pupil, on the class list
  *   POST /clases/mias                 (pupils' code, X-Clave)         → what this pupil sent
  *   POST /clases/mia/<id>             (pupils' code, X-Clave)         → one of them, as a project file
  *   POST /clases/borrar-mia/<id>      (pupils' code, X-Clave)
@@ -35,7 +36,7 @@ const MAX_SENT = 40 * 1024 * 1024
 /** Room for one class: no class may fill the space of all the others. */
 export const CLASS_BUDGET = 250 * 1024 * 1024
 const IDLE_DAYS = 180
-const PER_MINUTE = { crear: 6, profesor: 30, alumno: 30, ejercicio: 40, 'ejercicio-web': 40, 'borrar-ejercicio': 30, entregar: 10, entrega: 60, 'borrar-entrega': 60, borrar: 6, mias: 30, mia: 60, 'borrar-mia': 30 }
+const PER_MINUTE = { crear: 6, profesor: 30, alumno: 30, ejercicio: 40, 'ejercicio-web': 40, 'borrar-ejercicio': 30, entregar: 10, entrega: 60, 'borrar-entrega': 60, borrar: 6, mias: 30, mia: 60, 'borrar-mia': 30, unirme: 10 }
 
 /** Letters and figures that cannot be mistaken for each other (no 0/O, 1/I/L). */
 const ALPHABET = '23456789ABCDEFGHJKMNPQRSTUVWXYZ'
@@ -57,6 +58,8 @@ const tables = async (db) => {
     db.prepare('CREATE TABLE IF NOT EXISTS entregas_clase (id TEXT PRIMARY KEY, clase INTEGER NOT NULL, alumno TEXT NOT NULL, clave TEXT NOT NULL, titulo TEXT NOT NULL, ejercicio TEXT, bytes INTEGER NOT NULL, fecha INTEGER NOT NULL, almacen INTEGER NOT NULL)'),
     db.prepare('CREATE INDEX IF NOT EXISTS ejercicios_clase_clase ON ejercicios_clase (clase)'),
     db.prepare('CREATE INDEX IF NOT EXISTS entregas_clase_clase ON entregas_clase (clase)'),
+    // The class list: every pupil who joined, under the name they gave.
+    db.prepare('CREATE TABLE IF NOT EXISTS alumnos_clase (clase INTEGER NOT NULL, clave TEXT NOT NULL, nombre TEXT NOT NULL, unido INTEGER NOT NULL, PRIMARY KEY (clase, clave))'),
   ])
   // Added later: the address of a sheet of the library (then nothing is kept, and almacen is 0).
   try {
@@ -112,6 +115,7 @@ const dropClass = async (env, classId) => {
   await db.batch([
     db.prepare('DELETE FROM ejercicios_clase WHERE clase = ?1').bind(classId),
     db.prepare('DELETE FROM entregas_clase WHERE clase = ?1').bind(classId),
+    db.prepare('DELETE FROM alumnos_clase WHERE clase = ?1').bind(classId),
     db.prepare('DELETE FROM clases WHERE id = ?1').bind(classId),
   ])
 }
@@ -121,6 +125,10 @@ const sweep = async (env) => {
   const old = (await env.DB.prepare('SELECT id FROM clases WHERE usada < ?1 LIMIT 3').bind(Date.now() - IDLE_DAYS * 86400000).all()).results
   for (const c of old) await dropClass(env, c.id)
 }
+
+/** Puts a pupil on the class list, or brings their name up to date. */
+const enrol = (db, classId, key, name, now) =>
+  db.prepare('INSERT INTO alumnos_clase (clase, clave, nombre, unido) VALUES (?1, ?2, ?3, ?4) ON CONFLICT (clase, clave) DO UPDATE SET nombre = ?3').bind(classId, key, name, now)
 
 const exercisesOf = async (db, classId) =>
   (await db.prepare('SELECT id, titulo, archivo, bytes, fecha, origen FROM ejercicios_clase WHERE clase = ?1 ORDER BY fecha DESC').bind(classId).all()).results
@@ -165,6 +173,10 @@ export const clases = async (request, env, path) => {
     const rows = (await db.prepare('SELECT id, alumno, clave, titulo, ejercicio, bytes, fecha FROM entregas_clase WHERE clase = ?1 ORDER BY fecha DESC').bind(room.id).all()).results
     // Each pupil's key stays theirs: the teacher gets a print of it, enough to tell devices apart.
     const sent = await Promise.all(rows.map(async (r) => ({ ...r, clave: await print(r.clave) })))
+    const enrolled = (await db.prepare('SELECT clave, nombre, unido FROM alumnos_clase WHERE clase = ?1').bind(room.id).all()).results
+    const list = await Promise.all(enrolled.map(async (p) => ({ clave: await print(p.clave), nombre: p.nombre, unido: p.unido })))
+    // Pupils who sent before there was a list are on it too, under the name they sent with.
+    for (const r of sent) if (!list.some((p) => p.clave === r.clave)) list.push({ clave: r.clave, nombre: r.alumno, unido: r.fecha })
     return answer(200, {
       ok: true,
       nombre: room.nombre,
@@ -175,6 +187,7 @@ export const clases = async (request, env, path) => {
       espacio: CLASS_BUDGET,
       ejercicios: await exercisesOf(db, room.id),
       entregas: sent,
+      lista: list,
     })
   }
 
@@ -282,6 +295,7 @@ export const clases = async (request, env, path) => {
         .prepare('INSERT INTO entregas_clase (id, clase, alumno, clave, titulo, ejercicio, bytes, fecha, almacen) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)')
         .bind(sheet, room.id, pupil, key, title, exercise?.id ?? null, kept.length, now, where),
       addUsage(db, room.id, kept.length - freed),
+      enrol(db, room.id, key, pupil, now),
     ])
     return answer(200, { ok: true, id: sheet, reemplaza: Boolean(before) })
   }
@@ -298,9 +312,20 @@ export const clases = async (request, env, path) => {
     return serveSheet(env, sheet)
   }
 
-  if (action === 'mias' || action === 'mia' || action === 'borrar-mia') {
+  if (action === 'mias' || action === 'mia' || action === 'borrar-mia' || action === 'unirme') {
     const key = String(request.headers.get('X-Clave') ?? '')
     if (!/^[a-z0-9-]{8,40}$/.test(key)) return failed(400, 'Falta tu clave de alumno.')
+    if (action === 'unirme') {
+      let name = ''
+      try {
+        name = text((await request.json())?.nombre, 60)
+      } catch {
+        /* no name */
+      }
+      if (!name) return failed(400, 'Falta tu nombre.')
+      await enrol(db, room.id, key, name, now).run()
+      return answer(200)
+    }
     if (action === 'mias') {
       const mine = (await db.prepare('SELECT id, titulo, ejercicio, bytes, fecha FROM entregas_clase WHERE clase = ?1 AND clave = ?2 ORDER BY fecha DESC').bind(room.id, key).all()).results
       return answer(200, { ok: true, entregas: mine })
