@@ -88,8 +88,9 @@ const search = (query: string, topics: readonly ExerciseTopic[]): Found[] => {
 /**
  * The library: a search box, a square per topic, then the sheets of the chosen topic as an index.
  * The main library is dtecnico.com; sheets from other sites live apart, behind their own button.
+ * With `onPick`, a sheet is chosen (for a class) instead of opened on the desk.
  */
-const ExercisesPanel = ({ onClose }: { onClose: () => void }) => {
+export const ExercisesPanel = ({ onClose, onPick }: { onClose: () => void; onPick?: (address: string, name: string) => Promise<boolean> }) => {
   /** Looking at the other sites instead of the main library. */
   const [others, setOthers] = useState(false)
   const [topic, setTopic] = useState<ExerciseTopic | null>(null)
@@ -129,7 +130,8 @@ const ExercisesPanel = ({ onClose }: { onClose: () => void }) => {
     if (opening) return
     setOpening(sheet.exercise)
     setFailed(null)
-    const ok = await loadPdfFromUrl(exerciseLocalUrl(sheet.exercise, sheet.source), fileName(sheet.exercise))
+    const address = exerciseLocalUrl(sheet.exercise, sheet.source)
+    const ok = onPick ? await onPick(address, sheet.exercise.name) : await loadPdfFromUrl(address, fileName(sheet.exercise))
     setOpening(null)
     if (ok) onClose()
     else setFailed(sheet)
@@ -205,7 +207,7 @@ const ExercisesPanel = ({ onClose }: { onClose: () => void }) => {
               {topic ? (others ? (topic.source?.site ?? 'Varias webs') : 'Ejercicios para practicar') : 'Elige un tema'}
             </p>
             <h2 className="truncate text-[20px] font-semibold tracking-[-0.02em] text-ink">
-              {topic ? topic.title : others ? 'Ejercicios de otras webs' : 'Ejercicios para practicar'}
+              {topic ? topic.title : others ? 'Ejercicios de otras webs' : onPick ? 'Elige un ejercicio para tu clase' : 'Ejercicios para practicar'}
             </h2>
           </div>
           <IconButton label="Cerrar" onClick={onClose}>
@@ -253,7 +255,7 @@ const ExercisesPanel = ({ onClose }: { onClose: () => void }) => {
         <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 sm:px-6">
           {failed && (
             <p className="mb-2 rounded-xl bg-red-50 px-3 py-2 text-[12.5px] leading-snug text-red-600">
-              No se ha podido traer «{failed.exercise.name}» a la mesa.{' '}
+              No se ha podido traer «{failed.exercise.name}» {onPick ? 'a tu clase' : 'a la mesa'}.{' '}
               <a
                 href={exerciseUrl(failed.exercise, failed.source)}
                 target="_blank"

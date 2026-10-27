@@ -37,6 +37,8 @@ export interface ClassExercise {
   archivo: string
   bytes: number
   fecha: number
+  /** A sheet of the exercise library: only its address is kept. */
+  origen: string | null
 }
 
 export interface SentSheet {
@@ -147,6 +149,11 @@ export const forgetClass = (code: string) =>
 export const uploadExercise = async (code: string, title: string, fileName: string, pdf: Uint8Array) => {
   const query = new URLSearchParams({ t: title, n: fileName })
   await request(`ejercicio?${query}`, { code, method: 'PUT', body: pdf as BlobPart })
+}
+
+/** Puts a sheet of the exercise library in the class (its address, never a copy). */
+export const addLibraryExercise = async (code: string, address: string, title: string) => {
+  await request('ejercicio-web', { code, body: JSON.stringify({ origen: address, titulo: title }) })
 }
 
 export const exercisePdf = async (code: string, id: string) => new Uint8Array(await (await request(`ejercicio/${id}`, { code })).arrayBuffer())

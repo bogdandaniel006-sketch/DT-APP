@@ -8,6 +8,7 @@
  *   POST /clases/profesor             (teacher's code)                → the class, its exercises and what was sent
  *   POST /clases/alumno               (pupils' code)                  → the class and its exercises
  *   PUT  /clases/ejercicio?t=&n=      (teacher's code) the PDF        → { id }
+ *   POST /clases/ejercicio-web        (teacher's code) { origen, titulo } → { id }   a sheet of the library
  *   POST /clases/ejercicio/<id>       (either code)                   → the PDF
  *   POST /clases/borrar-ejercicio/<id>  (teacher's code)
  *   PUT  /clases/entregar?a=&k=&t=&e= (pupils' code) a project file   → { id }
@@ -18,18 +19,20 @@
  * The code goes in the X-Codigo header, never in the address. The class, its exercises and what
  * was sent are listed in the main database (DB); the files themselves go to the databases kept for
  * classes (see almacen.js). A sheet sent on an exercise of the class keeps only its strokes: the PDF
- * is the exercise's. Classes nobody has opened for IDLE_DAYS are deleted with everything in them.
+ * is the exercise's. Sheets of the exercise library are never copied: an exercise taken from it
+ * keeps only its address (origen) and is brought from its site each time. Classes nobody has opened for IDLE_DAYS are deleted with everything in them.
  */
 import { drop, put, read, stream } from './almacen.js'
+import { fetchSheet, originalOf } from './ejercicios.js'
 import { slowDown, tooMany } from './limites.js'
-import { tables as registroTables } from './registro.js'
+import { ORIGIN, tables as registroTables } from './registro.js'
 
 const MAX_EXERCISE = 40 * 1024 * 1024
 const MAX_SENT = 40 * 1024 * 1024
 /** Room for one class: no class may fill the space of all the others. */
 export const CLASS_BUDGET = 250 * 1024 * 1024
 const IDLE_DAYS = 180
-const PER_MINUTE = { crear: 6, profesor: 30, alumno: 30, ejercicio: 40, 'borrar-ejercicio': 30, entregar: 10, entrega: 60, 'borrar-entrega': 60, borrar: 6 }
+const PER_MINUTE = { crear: 6, profesor: 30, alumno: 30, ejercicio: 40, 'ejercicio-web': 40, 'borrar-ejercicio': 30, entregar: 10, entrega: 60, 'borrar-entrega': 60, borrar: 6 }
 
 /** Letters and figures that cannot be mistaken for each other (no 0/O, 1/I/L). */
 const ALPHABET = '23456789ABCDEFGHJKMNPQRSTUVWXYZ'
@@ -52,7 +55,20 @@ const tables = async (db) => {
     db.prepare('CREATE INDEX IF NOT EXISTS ejercicios_clase_clase ON ejercicios_clase (clase)'),
     db.prepare('CREATE INDEX IF NOT EXISTS entregas_clase_clase ON entregas_clase (clase)'),
   ])
+  // Added later: the address of a sheet of the library (then nothing is kept, and almacen is 0).
+  try {
+    await db.prepare('ALTER TABLE ejercicios_clase ADD COLUMN origen TEXT').run()
+  } catch {
+    /* already there */
+  }
   ready = true
+}
+
+/** A sheet of the library, brought from its site (never kept), as bytes. */
+const librarySheet = async (origin) => {
+  const address = ORIGIN.test(origin ?? '') ? originalOf(origin.slice('/ejercicios/'.length)) : null
+  const sheet = address ? await fetchSheet(address) : null
+  return sheet ? new Uint8Array(await sheet.arrayBuffer()) : null
 }
 
 const answer = (status, body = { ok: status < 300 }) =>
@@ -85,7 +101,7 @@ const dropClass = async (env, classId) => {
   const db = env.DB
   const exercises = (await db.prepare('SELECT id, bytes, almacen FROM ejercicios_clase WHERE clase = ?1').bind(classId).all()).results
   const sent = (await db.prepare('SELECT id, bytes, almacen FROM entregas_clase WHERE clase = ?1').bind(classId).all()).results
-  for (const x of exercises) await drop(env, 'clases', x.almacen, 'e' + x.id, x.bytes)
+  for (const x of exercises) if (x.almacen) await drop(env, 'clases', x.almacen, 'e' + x.id, x.bytes)
   for (const s of sent) await drop(env, 'clases', s.almacen, 's' + s.id, s.bytes)
   await db.batch([
     db.prepare('DELETE FROM ejercicios_clase WHERE clase = ?1').bind(classId),
@@ -101,7 +117,7 @@ const sweep = async (env) => {
 }
 
 const exercisesOf = async (db, classId) =>
-  (await db.prepare('SELECT id, titulo, archivo, bytes, fecha FROM ejercicios_clase WHERE clase = ?1 ORDER BY fecha DESC').bind(classId).all()).results
+  (await db.prepare('SELECT id, titulo, archivo, bytes, fecha, origen FROM ejercicios_clase WHERE clase = ?1 ORDER BY fecha DESC').bind(classId).all()).results
 
 export const clases = async (request, env, path) => {
   if (!env.DB) return failed(503, 'Las clases no están disponibles ahora mismo.')
@@ -134,7 +150,7 @@ export const clases = async (request, env, path) => {
   const asTeacher = given.startsWith('P')
   const room = await db.prepare(`SELECT * FROM clases WHERE ${asTeacher ? 'profesor' : 'alumnos'} = ?1`).bind(given).first()
   if (!room) return failed(404, asTeacher ? 'No hay ninguna clase con ese código de profesor.' : 'No hay ninguna clase con ese código.')
-  const teacherOnly = ['profesor', 'borrar-ejercicio', 'entrega', 'borrar-entrega', 'borrar'].includes(action) || (action === 'ejercicio' && request.method === 'PUT')
+  const teacherOnly = ['profesor', 'ejercicio-web', 'borrar-ejercicio', 'entrega', 'borrar-entrega', 'borrar'].includes(action) || (action === 'ejercicio' && request.method === 'PUT')
   if (teacherOnly && !asTeacher) return failed(403, 'Esto solo lo puede hacer el profesor de la clase.')
   if (action === 'entregar' && asTeacher) return failed(403, 'Las láminas las envían los alumnos, con el código de alumnos.')
   await db.prepare('UPDATE clases SET usada = ?2 WHERE id = ?1').bind(room.id, now).run()
@@ -176,10 +192,36 @@ export const clases = async (request, env, path) => {
     return answer(200, { ok: true, id: exercise })
   }
 
+  if (action === 'ejercicio-web') {
+    if (request.method !== 'POST') return failed(405, 'Método no permitido.')
+    let body = {}
+    try {
+      body = (await request.json()) ?? {}
+    } catch {
+      /* nothing sent */
+    }
+    const origin = typeof body.origen === 'string' ? body.origen : ''
+    if (!ORIGIN.test(origin) || !originalOf(origin.slice('/ejercicios/'.length))) return failed(400, 'Ese ejercicio no es de la biblioteca.')
+    const already = await db.prepare('SELECT id FROM ejercicios_clase WHERE clase = ?1 AND origen = ?2').bind(room.id, origin).first()
+    if (already) return answer(200, { ok: true, id: already.id })
+    const exercise = randomId()
+    const file = decodeURIComponent(origin.split('/').pop() ?? 'ejercicio.pdf')
+    const title = text(body.titulo, 120) || file.replace(/.pdf$/i, '')
+    await db
+      .prepare('INSERT INTO ejercicios_clase (id, clase, titulo, archivo, bytes, fecha, almacen, origen) VALUES (?1, ?2, ?3, ?4, 0, ?5, 0, ?6)')
+      .bind(exercise, room.id, title, file, now, origin)
+      .run()
+    return answer(200, { ok: true, id: exercise })
+  }
+
   if (action === 'ejercicio' || action === 'borrar-ejercicio') {
     if (request.method !== 'POST' || !ID.test(id ?? '')) return failed(400, 'Ejercicio no válido.')
     const exercise = await db.prepare('SELECT * FROM ejercicios_clase WHERE id = ?1 AND clase = ?2').bind(id, room.id).first()
     if (!exercise) return failed(404, 'Ese ejercicio ya no está en la clase.')
+    if (action === 'ejercicio' && exercise.origen) {
+      const pdf = await librarySheet(exercise.origen)
+      return pdf ? new Response(pdf, { headers: { 'Content-Type': 'application/pdf', 'Cache-Control': 'no-store' } }) : failed(502, 'No se ha podido traer la ficha de su web. Prueba en un rato.')
+    }
     if (action === 'ejercicio') {
       const pdf = await stream(env, 'clases', exercise.almacen, 'e' + id)
       return pdf
@@ -188,7 +230,7 @@ export const clases = async (request, env, path) => {
     }
     // The sheets sent on it go with it: they were drawn on its PDF.
     const onIt = (await db.prepare('SELECT id, bytes, almacen FROM entregas_clase WHERE ejercicio = ?1').bind(id).all()).results
-    await drop(env, 'clases', exercise.almacen, 'e' + id, exercise.bytes)
+    if (exercise.almacen) await drop(env, 'clases', exercise.almacen, 'e' + id, exercise.bytes)
     for (const s of onIt) await drop(env, 'clases', s.almacen, 's' + s.id, s.bytes)
     await db.batch([
       db.prepare('DELETE FROM entregas_clase WHERE ejercicio = ?1').bind(id),
@@ -252,8 +294,16 @@ export const clases = async (request, env, path) => {
       return whole ? new Response(whole, { headers: { ...headers, 'Content-Length': String(sheet.bytes) } }) : failed(404, 'No se encuentra el archivo de esta lámina.')
     }
     // On an exercise: the strokes the pupil sent, then the exercise's PDF.
-    const exercise = await db.prepare('SELECT bytes, almacen FROM ejercicios_clase WHERE id = ?1').bind(sheet.ejercicio).first()
+    const exercise = await db.prepare('SELECT bytes, almacen, origen FROM ejercicios_clase WHERE id = ?1').bind(sheet.ejercicio).first()
     const strokes = await read(env, 'clases', sheet.almacen, 's' + id)
+    if (exercise?.origen && strokes) {
+      const sheetPdf = await librarySheet(exercise.origen)
+      if (!sheetPdf) return failed(502, 'No se ha podido traer la ficha de su web. Prueba en un rato.')
+      const out = new Uint8Array(strokes.length + sheetPdf.length)
+      out.set(strokes)
+      out.set(sheetPdf, strokes.length)
+      return new Response(out, { headers })
+    }
     const pdf = exercise && strokes ? await stream(env, 'clases', exercise.almacen, 'e' + sheet.ejercicio, strokes) : null
     return pdf ? new Response(pdf, { headers: { ...headers, 'Content-Length': String(strokes.length + exercise.bytes) } }) : failed(404, 'No se encuentra el archivo de esta lámina.')
   }

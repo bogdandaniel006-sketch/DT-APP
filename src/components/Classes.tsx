@@ -1,4 +1,4 @@
-import { ArrowLeft, Check, Copy, FileUp, GraduationCap, RotateCw, Send, Trash2, UserRound, Users, X } from 'lucide-react'
+import { ArrowLeft, BookOpen, Check, Copy, FileUp, GraduationCap, RotateCw, Send, Trash2, UserRound, Users, X } from 'lucide-react'
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { imagePdf } from '../pdf/make'
@@ -7,6 +7,7 @@ import { goToStart, loadPdf } from '../state/actions'
 import { appStore } from '../state/appStore'
 import {
   SENT_TAG,
+  addLibraryExercise,
   classStore,
   cleanCode,
   createClass,
@@ -34,6 +35,7 @@ import { documentStore } from '../state/documentStore'
 import { touchStore } from '../utils/device'
 import { baseName } from '../utils/download'
 import { pickPdf } from '../utils/filePicker'
+import { ExercisesPanel } from './Exercises'
 import { IconButton } from './ui/IconButton'
 
 type Screen =
@@ -321,6 +323,18 @@ const Teacher = ({ code, fresh, go, close }: { code: string; fresh?: boolean; go
       await reload()
     })
 
+  const [picking, setPicking] = useState(false)
+  const pick = async (address: string, name: string) => {
+    try {
+      await addLibraryExercise(code, address, name)
+      await reload()
+      return true
+    } catch (err) {
+      setError(message(err))
+      return false
+    }
+  }
+
   const openExercise = (id: string, title: string) =>
     run('abrir' + id, async () => {
       await loadPdf(await exercisePdf(code, id), `${title}.pdf`, { kind: 'pdf' })
@@ -379,16 +393,24 @@ const Teacher = ({ code, fresh, go, close }: { code: string; fresh?: boolean; go
 
       <SectionTitle
         action={
-          <button type="button" className={SOFT} onClick={() => void upload()} disabled={busy !== null}>
-            <FileUp size={14} />
-            {busy === 'subir' ? 'Subiendo…' : 'Subir ejercicio'}
-          </button>
+          <div className="flex gap-1.5">
+            <button type="button" className={SOFT} onClick={() => setPicking(true)} disabled={busy !== null}>
+              <BookOpen size={14} />
+              De la biblioteca
+            </button>
+            <button type="button" className={SOFT} onClick={() => void upload()} disabled={busy !== null}>
+              <FileUp size={14} />
+              {busy === 'subir' ? 'Subiendo…' : 'Subir archivo'}
+            </button>
+          </div>
         }
       >
         Ejercicios · {view.ejercicios.length}
       </SectionTitle>
       {view.ejercicios.length === 0 ? (
-        <p className="text-[12.5px] text-muted">Sube un PDF o una imagen: tus alumnos lo verán en la clase y lo podrán hacer aquí.</p>
+        <p className="text-[12.5px] text-muted">
+          Elige fichas de la biblioteca de ejercicios o sube un PDF o una imagen tuyos: tus alumnos los verán en la clase y los podrán hacer aquí.
+        </p>
       ) : (
         <ul className="flex flex-col">
           {view.ejercicios.map((x) => (
@@ -396,6 +418,7 @@ const Teacher = ({ code, fresh, go, close }: { code: string; fresh?: boolean; go
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-[13.5px] font-medium text-ink">{x.titulo}</span>
                 <span className="text-[11.5px] text-muted">
+                  {x.origen && <span className="mr-1 rounded-full bg-accent-soft px-1.5 py-px font-medium text-accent">Biblioteca</span>}
                   {when(x.fecha)} · {sentOn(x.id) === 1 ? '1 lámina enviada' : `${sentOn(x.id)} láminas enviadas`}
                 </span>
               </span>
@@ -471,6 +494,7 @@ const Teacher = ({ code, fresh, go, close }: { code: string; fresh?: boolean; go
       <div className="mt-2">
         <Problem>{error}</Problem>
       </div>
+      {picking && <ExercisesPanel onClose={() => setPicking(false)} onPick={pick} />}
 
       <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-black/[0.06] pt-3">
         <p className="flex-1 text-[11.5px] leading-snug text-faint">
@@ -600,7 +624,7 @@ export const ClassesPanel = () => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
       e.stopPropagation()
-      if (e.key !== 'Escape') return
+      if (e.key !== 'Escape' || document.querySelectorAll('[aria-modal=true]').length > 1) return
       e.preventDefault()
       closePanel()
     }
