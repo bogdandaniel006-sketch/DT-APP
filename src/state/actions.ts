@@ -33,6 +33,7 @@ import {
 } from '../utils/storage'
 import { appStore, viewActions } from './appStore'
 import { noteExported, noteOpened, type OpenedKind } from './sharing'
+import type { ExerciseRef } from './classes'
 import { documentActions, documentStore } from './documentStore'
 
 const nextFrame = () => new Promise((r) => requestAnimationFrame(() => r(undefined)))
@@ -86,17 +87,34 @@ export const loadPdf = async (
     kind?: OpenedKind
     /** Address of a sheet of the exercise library. */
     origin?: string
+    /** See openPdf: a document kept apart from other copies of the same PDF. */
+    tag?: string
+    /** An exercise of a class this sheet was opened from. */
+    exercise?: ExerciseRef
   } = {},
 ) => {
   const previousPhase = appStore.get().phase
   flushAutosave()
   appStore.set({ phase: 'loading', error: null })
   try {
-    const session = await openPdf(bytes, name)
+    const session = await openPdf(bytes, name, options.tag)
     const { tabs } = appStore.get()
     let tab = tabs.find((t) => t.fingerprint === session.fingerprint)
+    if (tab && options.exercise) {
+      // Opened again from its class: it is that exercise, wherever it was first opened from.
+      tab = { ...tab, exercise: options.exercise }
+      const updated = tab
+      appStore.set({ tabs: tabs.map((t) => (t.id === updated.id ? updated : t)) })
+    }
     if (!tab) {
-      tab = { id: newId(), name, fingerprint: session.fingerprint, ...(options.own && { own: true }) }
+      tab = {
+        id: newId(),
+        name,
+        fingerprint: session.fingerprint,
+        ...(options.own && { own: true }),
+        ...(options.tag && { tag: options.tag }),
+        ...(options.exercise && { exercise: options.exercise }),
+      }
       appStore.set({ tabs: [...tabs, tab] })
       await saveTabFile(tab.id, { name, bytes })
     }
@@ -167,7 +185,7 @@ export const addBlankPage = async () => {
     const bytes = await withBlankPage(session.bytes)
     flushAutosave()
     const previous = session.fingerprint
-    const next = await openPdf(bytes, tab.name)
+    const next = await openPdf(bytes, tab.name, tab.tag)
     const { shapes } = documentStore.get()
     // The file changed: its drawing follows it to the new identity before anything else is saved.
     saveDrawing(next.fingerprint, shapes, appStore.get().page)
@@ -207,7 +225,7 @@ export const activateTab = async (id: string) => {
   const previousPhase = phase
   appStore.set({ phase: 'loading', error: null })
   try {
-    await openPdf(file.bytes, tab.name)
+    await openPdf(file.bytes, tab.name, tab.tag)
     await show(tab)
   } catch (err) {
     console.error(err)

@@ -1,14 +1,16 @@
-import { Check, ChevronDown, Download, FileText, FolderOpen, House, Image, Magnet, Maximize, Redo2, Save, ScanSearch, TriangleAlert, Undo2 } from 'lucide-react'
+import { Check, ChevronDown, Download, FileText, FolderOpen, House, Image, Magnet, Maximize, Redo2, Save, ScanSearch, Send, TriangleAlert, Undo2 } from 'lucide-react'
 import { detectionStore, detectionSummary } from '../pdf/detect'
 import type { SnapMode } from '../types'
 import { useState } from 'react'
 import { goToStart, loadPdfFile, saveProject } from '../state/actions'
 import { appStore, viewActions, zoomPercent } from '../state/appStore'
+import { classStore } from '../state/classes'
 import { useStore } from '../state/createStore'
 import { documentActions, documentStore } from '../state/documentStore'
 import { noteExported } from '../state/sharing'
 import { shortcutLabel, shortcutStore } from '../state/shortcuts'
 import { pickPdf } from '../utils/filePicker'
+import { SendToTeacher } from './Classes'
 import { ControlsMenu } from './ControlsMenu'
 import { Credit } from './Credit'
 import { ExercisesButton } from './Exercises'
@@ -32,6 +34,8 @@ export const openPdfDialog = async () => {
 
 const SaveMenu = () => {
   const savedAt = useStore(appStore, (s) => s.savedAt)
+  const inClass = useStore(classStore, (s) => s.pupil.length > 0)
+  const [sending, setSending] = useState(false)
   const saveFailed = useStore(appStore, (s) => s.saveFailed)
   const [busy, setBusy] = useState(false)
 
@@ -45,6 +49,7 @@ const SaveMenu = () => {
   }
 
   return (
+    <>
     <Popover
       align="right"
       trigger={({ open, toggle }) => (
@@ -89,6 +94,17 @@ const SaveMenu = () => {
               saveProject()
             }}
           />
+          {inClass && (
+            <MenuItem
+              icon={<Send size={16} />}
+              label="Enviar al profesor"
+              hint="solo si quieres"
+              onSelect={() => {
+                close()
+                setSending(true)
+              }}
+            />
+          )}
           <div className="mx-2 my-1 h-px bg-black/[0.06]" />
           {saveFailed ? (
             <p className="flex items-start gap-1.5 px-2.5 py-1.5 text-[11.5px] leading-snug text-red-600">
@@ -108,6 +124,8 @@ const SaveMenu = () => {
         </div>
       )}
     </Popover>
+    {sending && <SendToTeacher onClose={() => setSending(false)} />}
+    </>
   )
 }
 

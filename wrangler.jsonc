@@ -8,7 +8,7 @@
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
     // Exercise sheets, projects opened from a web file, what people send and the creator's panel go through the worker; every other path is the app.
-    "run_worker_first": ["/ejercicios/*", "/abrir", "/registro/*", "/panelcreador", "/panelcreador/*"]
+    "run_worker_first": ["/ejercicios/*", "/abrir", "/registro/*", "/clases/*", "/panelcreador", "/panelcreador/*"]
   },
   // Where the sheets and the activity of people who accepted are kept (see worker/registro.js).
   // The panel's password is the PANEL_CLAVE secret of the worker, set in Cloudflare, never here.

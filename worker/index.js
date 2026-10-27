@@ -8,11 +8,13 @@
  *   /ejercicios/<id>/…                     the other sites of src/data/exercises.ts
  *   POST /abrir                            a project opened from its web file (see openProject)
  *   /registro/…                            what people who accepted send: activity and sheets (see registro.js)
+ *   /clases/…                              classes: exercises put up and sheets sent (see clases.js)
  *   /panelcreador                          the creator's panel (see panel.js)
  */
 import { panel } from './panel.js'
 import { fetchSheet, originalOf } from './ejercicios.js'
 import { registro } from './registro.js'
+import { clases } from './clases.js'
 import { slowDown, tooMany } from './limites.js'
 
 /** Largest project opened from a web file (its PDF and strokes, as text). */
@@ -46,6 +48,7 @@ export default {
     const { pathname } = new URL(request.url)
     if (request.method === 'POST' && pathname === '/abrir') return openProject(request, env)
     if (pathname.startsWith('/registro/')) return registro(request, env, pathname.slice(10))
+    if (pathname.startsWith('/clases/')) return clases(request, env, pathname.slice(8))
     if (pathname === '/panelcreador' || pathname.startsWith('/panelcreador/')) return panel(request, env)
     const original = request.method === 'GET' && pathname.startsWith('/ejercicios/') ? originalOf(pathname.slice(12)) : null
     if (!original) return env.ASSETS.fetch(request)

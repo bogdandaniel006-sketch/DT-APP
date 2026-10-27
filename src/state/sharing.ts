@@ -1,3 +1,4 @@
+import { SENT_TAG } from './classes'
 import { getSession } from '../pdf/session'
 import { appStore } from './appStore'
 import { createStore } from './createStore'
@@ -112,10 +113,10 @@ interface Sheet {
   pageCount: number
 }
 
-/** The sheet on the desk, as it stands now. */
+/** The sheet on the desk, as it stands now. A pupil's sheet open in a teacher's class is the pupil's: never sent. */
 const current = (): Sheet | null => {
   const session = getSession()
-  if (!session) return null
+  if (!session || session.fingerprint.includes(`#${SENT_TAG}`)) return null
   const { page, pageCount } = appStore.get()
   return { fingerprint: session.fingerprint, name: session.name, bytes: session.bytes, shapes: [...documentStore.get().shapes], page, pageCount }
 }
@@ -160,7 +161,7 @@ export type OpenedKind = 'pdf' | 'imagen' | 'blanco' | 'proyecto' | 'ejercicio'
 /** Something done in the app, with the sheet it was done on. */
 const note = async (type: string, detail: Record<string, unknown>) => {
   const session = getSession()
-  if (!accepted() || !session) return
+  if (!accepted() || !session || session.fingerprint.includes(`#${SENT_TAG}`)) return
   await post('evento', { d: device(), t: type, f: await printOf(session.fingerprint), x: { nombre: session.name, ...detail } })
 }
 

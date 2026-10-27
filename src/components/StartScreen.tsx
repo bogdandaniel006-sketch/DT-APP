@@ -4,6 +4,7 @@ import { appStore } from '../state/appStore'
 import { useStore } from '../state/createStore'
 import { reviewSharing } from '../state/sharing'
 import { baseName } from '../utils/download'
+import { ClassesButton, ClassesPanel } from './Classes'
 import { Credit } from './Credit'
 import { ExercisesButton } from './Exercises'
 import { ThemeToggle } from './ThemeToggle'
@@ -73,6 +74,7 @@ export const StartScreen = () => {
           </Tooltip>
         </div>
         <ExercisesButton variant="start" />
+        <ClassesButton />
         {fileName && !loading && (
           <button
             type="button"
@@ -93,6 +95,7 @@ export const StartScreen = () => {
           Privacidad
         </button>
       </div>
+      <ClassesPanel />
     </main>
   )
 }

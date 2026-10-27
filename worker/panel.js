@@ -1,6 +1,7 @@
 import { fetchSheet, originalOf } from './ejercicios.js'
 import { addressOf } from './limites.js'
 import { DEVICE, ORIGIN, PRINT, tables } from './registro.js'
+import { allClasses, IDLE_DAYS_CLASSES, showCode } from './clases.js'
 
 /**
  * The creator's panel, at /panelcreador: the sheets people who accepted have worked on, what
@@ -67,6 +68,7 @@ a.btn:hover{background:#dbe6fd}code{font-size:12px;color:var(--muted)}
 .login{max-width:340px;margin:16vh auto;background:#fff;border-radius:20px;padding:24px;box-shadow:0 10px 36px rgba(15,23,42,.1)}
 .login input{width:100%;height:42px;border-radius:12px;border:0;background:#f1f2f4;padding:0 12px;font:inherit;margin:12px 0}
 .login button{width:100%;height:42px;border:0;border-radius:12px;background:var(--accent);color:#fff;font:inherit;font-weight:600;cursor:pointer}
+code.key{font-size:12.5px;color:var(--ink);user-select:all;letter-spacing:.04em;white-space:nowrap}
 .error{color:#dc2626;font-size:13px}.empty{color:var(--muted);padding:8px 0}
 `
 
@@ -170,6 +172,15 @@ const panelPage = async (env) => {
     .map((e) => `<tr><td class="muted">${when(e.fecha)}</td><td>${device(e.dispositivo)}</td><td>${describe(e.tipo, e.detalle)}</td></tr>`)
     .join('')
 
+  const mb = (bytes) => `${((bytes ?? 0) / 1048576).toFixed(1).replace('.', ',')} MB`
+  const classRows = (await allClasses(db))
+    .map(
+      (c) =>
+        `<tr><td class="name">${escape(c.nombre)}</td><td><code class="key">${escape(showCode(c.profesor))}</code></td><td><code class="key">${escape(showCode(c.alumnos))}</code></td>
+<td class="num">${c.ejercicios}</td><td class="num">${c.entregas}</td><td class="num">${c.alumnos_enviaron}</td><td class="num">${mb(c.bytes)}</td><td class="muted">${when(c.creada)}</td><td class="muted">${when(c.usada)}</td></tr>`,
+    )
+    .join('')
+
   const card = (value, label) => `<div class="card"><b>${value ?? 0}</b><span>${label}</span></div>`
   const table = (head, rows, empty) => (rows ? `<table><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>` : `<p class="empty">${empty}</p>`)
 
@@ -177,6 +188,8 @@ const panelPage = async (env) => {
   return html(`<script>try{localStorage.setItem('lamina:creador','1')}catch(e){}</script>
 <main><header><h1>Panel del creador</h1><a href="/">Ir a Lámina</a><a href="/panelcreador/salir">Salir</a></header>
 <div class="cards">${card(t.dispositivos, 'personas que aceptaron')}${card(w.activos, 'activas esta semana')}${card(t.laminas, 'láminas recibidas')}${card(t.aperturas, 'archivos abiertos')}${card(t.exportaciones, 'exportaciones')}${card(w.acciones, 'acciones esta semana')}</div>
+<section><h2>Clases</h2>${table('<th>Clase</th><th>Código de profesor</th><th>Código de alumnos</th><th class="num">Ejercicios</th><th class="num">Láminas enviadas</th><th class="num">Alumnos que enviaron</th><th class="num">Espacio</th><th>Creada</th><th>Último uso</th>', classRows, 'Todavía no se ha creado ninguna clase.')}
+<p class="muted">Si un profesor pierde su código, está aquí. Las clases que nadie abre en ${IDLE_DAYS_CLASSES} días se borran solas.</p></section>
 <section><h2>Láminas</h2>${table('<th>Archivo</th><th class="num">Págs.</th><th class="num">Trazos</th><th>Exportada</th><th>Persona</th><th>Última modificación</th><th></th>', sheetRows, 'Todavía no ha llegado ninguna lámina.')}</section>
 <section><h2>Ejercicios más abiertos · últimos 30 días</h2>${table('<th>Ficha</th><th class="num">Veces</th><th class="num">Personas</th>', exerciseRows, 'Nadie ha abierto todavía un ejercicio de la biblioteca.')}</section>
 <section><h2>Actividad reciente</h2>${table('<th>Cuándo</th><th>Persona</th><th>Qué</th>', activityRows, 'Sin actividad todavía.')}</section>

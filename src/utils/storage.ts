@@ -1,3 +1,4 @@
+import type { ExerciseRef } from '../state/classes'
 import type { Shape } from '../types'
 
 const DB_NAME = 'lamina'
@@ -97,6 +98,10 @@ export interface StoredTab {
   fingerprint: string
   /** Made here (blank sheet, picture): its drawing goes away with the tab. */
   own?: boolean
+  /** Keeps apart copies of one PDF that carry different drawings (sheets pupils sent, see openPdf). */
+  tag?: string
+  /** An exercise of a class, opened from the class: sent back to it, only the strokes travel. */
+  exercise?: ExerciseRef
 }
 
 const TABS_KEY = 'lamina:tabs'
