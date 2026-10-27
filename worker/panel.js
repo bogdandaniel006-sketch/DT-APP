@@ -2,6 +2,7 @@ import { fetchSheet, originalOf } from './ejercicios.js'
 import { addressOf } from './limites.js'
 import { DEVICE, ORIGIN, PRINT, tables } from './registro.js'
 import { allClasses, IDLE_DAYS_CLASSES, showCode } from './clases.js'
+import { allUsage, stream } from './almacen.js'
 
 /**
  * The creator's panel, at /panelcreador: the sheets people who accepted have worked on, what
@@ -138,7 +139,7 @@ const panelPage = async (env) => {
     ),
     db.prepare('SELECT COUNT(DISTINCT dispositivo) AS activos, COUNT(*) AS acciones FROM eventos WHERE fecha > ?1').bind(now - 7 * day),
     db.prepare(
-      'SELECT l.dispositivo, l.huella, l.nombre, l.paginas, l.trazos, l.origen, l.actualizada, l.exportada, a.huella IS NOT NULL AS guardado FROM laminas l LEFT JOIN archivos a ON a.dispositivo = l.dispositivo AND a.huella = l.huella ORDER BY l.actualizada DESC LIMIT 300',
+      'SELECT l.dispositivo, l.huella, l.nombre, l.paginas, l.trazos, l.origen, l.actualizada, l.exportada, (a.huella IS NOT NULL OR g.huella IS NOT NULL) AS guardado FROM laminas l LEFT JOIN archivos a ON a.dispositivo = l.dispositivo AND a.huella = l.huella LEFT JOIN archivos_en g ON g.dispositivo = l.dispositivo AND g.huella = l.huella ORDER BY l.actualizada DESC LIMIT 300',
     ),
     db.prepare(
       "SELECT json_extract(detalle, '$.nombre') AS nombre, COUNT(*) AS veces, COUNT(DISTINCT dispositivo) AS personas FROM eventos WHERE tipo = 'abrir' AND json_extract(detalle, '$.tipo') = 'ejercicio' AND fecha > ?1 GROUP BY nombre ORDER BY veces DESC LIMIT 50",
@@ -159,7 +160,7 @@ const panelPage = async (env) => {
 <td>${
         openable
           ? `<a class="btn" href="/?ver=${at}" target="_blank" rel="noopener">Abrir en la mesa</a><a class="btn" href="/panelcreador/archivo/${at}" target="_blank" rel="noopener">PDF original</a>`
-          : '<span class="muted" title="Archivo de más de 256 KB: no se guarda">Archivo grande, no guardado</span>'
+          : '<span class="muted" title="No había sitio para guardar el archivo">Archivo no guardado</span>'
       }</td></tr>`
     })
     .join('')
@@ -181,6 +182,10 @@ const panelPage = async (env) => {
     )
     .join('')
 
+  const storeRows = (await allUsage(env))
+    .map((u) => `<tr><td>${u.kind === 'clases' ? 'Clases' : 'Archivos de láminas'} ${u.index}</td><td class="num">${mb(u.bytes)}</td><td class="num">${mb(u.room)}</td><td class="num">${Math.round((100 * u.bytes) / u.room)} %</td></tr>`)
+    .join('')
+
   const card = (value, label) => `<div class="card"><b>${value ?? 0}</b><span>${label}</span></div>`
   const table = (head, rows, empty) => (rows ? `<table><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>` : `<p class="empty">${empty}</p>`)
 
@@ -190,6 +195,8 @@ const panelPage = async (env) => {
 <div class="cards">${card(t.dispositivos, 'personas que aceptaron')}${card(w.activos, 'activas esta semana')}${card(t.laminas, 'láminas recibidas')}${card(t.aperturas, 'archivos abiertos')}${card(t.exportaciones, 'exportaciones')}${card(w.acciones, 'acciones esta semana')}</div>
 <section><h2>Clases</h2>${table('<th>Clase</th><th>Código de profesor</th><th>Código de alumnos</th><th class="num">Ejercicios</th><th class="num">Láminas enviadas</th><th class="num">Alumnos que enviaron</th><th class="num">Espacio</th><th>Creada</th><th>Último uso</th>', classRows, 'Todavía no se ha creado ninguna clase.')}
 <p class="muted">Si un profesor pierde su código, está aquí. Las clases que nadie abre en ${IDLE_DAYS_CLASSES} días se borran solas.</p></section>
+<section><h2>Almacenamiento</h2>${table('<th>Base de datos</th><th class="num">Usado</th><th class="num">Capacidad</th><th class="num">Lleno</th>', storeRows, 'Las bases de datos de archivos no están conectadas.')}
+<p class="muted">Los archivos grandes se reparten entre estas bases de datos: cuando una se llena, se usa la siguiente.</p></section>
 <section><h2>Láminas</h2>${table('<th>Archivo</th><th class="num">Págs.</th><th class="num">Trazos</th><th>Exportada</th><th>Persona</th><th>Última modificación</th><th></th>', sheetRows, 'Todavía no ha llegado ninguna lámina.')}</section>
 <section><h2>Ejercicios más abiertos · últimos 30 días</h2>${table('<th>Ficha</th><th class="num">Veces</th><th class="num">Personas</th>', exerciseRows, 'Nadie ha abierto todavía un ejercicio de la biblioteca.')}</section>
 <section><h2>Actividad reciente</h2>${table('<th>Cuándo</th><th>Persona</th><th>Qué</th>', activityRows, 'Sin actividad todavía.')}</section>
@@ -198,10 +205,26 @@ const panelPage = async (env) => {
 
 const MAGIC = encoder.encode('LAMINA1\n')
 
-/** The original of a sheet: kept in the database, or brought again from the library it came from. */
-const original = async (db, d, f) => {
+const join = (head, pdf) => {
+  if (!head) return pdf
+  const out = new Uint8Array(head.length + pdf.length)
+  out.set(head)
+  out.set(pdf, head.length)
+  return out
+}
+
+/**
+ * The original of a sheet, after `head` if given: from the file databases (read piece by piece, so
+ * big ones never sit whole in memory), from the first small ones kept in DB, or brought again from
+ * the library it came from.
+ */
+const original = async (env, d, f, head) => {
+  const db = env.DB
   const sheet = await db.prepare('SELECT nombre, origen, dibujo FROM laminas WHERE dispositivo = ?1 AND huella = ?2').bind(d, f).first()
   if (!sheet) return null
+  const big = await db.prepare('SELECT almacen, bytes FROM archivos_en WHERE dispositivo = ?1 AND huella = ?2').bind(d, f).first()
+  const piece = big && (await stream(env, 'archivos', big.almacen, `${d}/${f}`, head))
+  if (piece) return { sheet, body: piece, length: big.bytes + (head?.length ?? 0) }
   const kept = await db.prepare('SELECT datos FROM archivos WHERE dispositivo = ?1 AND huella = ?2').bind(d, f).first()
   let pdf = kept?.datos ? new Uint8Array(kept.datos) : null
   if (!pdf && sheet.origen && ORIGIN.test(sheet.origen)) {
@@ -209,27 +232,26 @@ const original = async (db, d, f) => {
     const fetched = address ? await fetchSheet(address) : null
     pdf = fetched ? new Uint8Array(await fetched.arrayBuffer()) : null
   }
-  return pdf && { pdf, sheet }
+  if (!pdf) return null
+  const body = join(head, pdf)
+  return { sheet, body, length: body.length }
 }
 
-/** A sheet and its strokes as a project file (.lamina), which the app opens as it is (see src/utils/project.ts). */
-const project = async (db, d, f) => {
-  const found = await original(db, d, f)
-  if (!found) return null
-  const { pdf, sheet } = found
+/** The project header of a sheet: its strokes, before the PDF (see src/utils/project.ts). */
+const projectHead = async (db, d, f) => {
+  const sheet = await db.prepare('SELECT nombre, dibujo FROM laminas WHERE dispositivo = ?1 AND huella = ?2').bind(d, f).first()
   let saved = { shapes: [], page: 0 }
   try {
-    saved = JSON.parse(sheet.dibujo ?? 'null') ?? saved
+    saved = JSON.parse(sheet?.dibujo ?? 'null') ?? saved
   } catch {
     /* no strokes kept */
   }
-  const header = encoder.encode(JSON.stringify({ version: 1, name: sheet.nombre ?? 'lamina.pdf', shapes: saved.shapes ?? [], page: saved.page ?? 0 }))
-  const out = new Uint8Array(MAGIC.length + 4 + header.length + pdf.length)
-  out.set(MAGIC)
-  new DataView(out.buffer).setUint32(MAGIC.length, header.length)
-  out.set(header, MAGIC.length + 4)
-  out.set(pdf, MAGIC.length + 4 + header.length)
-  return out
+  const header = encoder.encode(JSON.stringify({ version: 1, name: sheet?.nombre ?? 'lamina.pdf', shapes: saved.shapes ?? [], page: saved.page ?? 0 }))
+  const head = new Uint8Array(MAGIC.length + 4 + header.length)
+  head.set(MAGIC)
+  new DataView(head.buffer).setUint32(MAGIC.length, header.length)
+  head.set(header, MAGIC.length + 4)
+  return head
 }
 
 export const panel = async (request, env) => {
@@ -271,15 +293,15 @@ export const panel = async (request, env) => {
   if (!env.DB || !DEVICE.test(d ?? '') || !PRINT.test(f ?? '')) return new Response('No encontrado.', { status: 404 })
   await tables(env.DB)
   if (kind === 'archivo') {
-    const found = await original(env.DB, d, f)
+    const found = await original(env, d, f)
     if (!found) return new Response('Este archivo no se guardó.', { status: 404 })
     const name = (found.sheet.nombre ?? 'lamina.pdf').replace(/[^\w .()-]/g, '_')
-    return new Response(found.pdf, { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="${name}"`, 'Cache-Control': 'no-store' } })
+    return new Response(found.body, { headers: { 'Content-Length': String(found.length), 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="${name}"`, 'Cache-Control': 'no-store' } })
   }
   if (kind === 'proyecto') {
-    const bytes = await project(env.DB, d, f)
-    return bytes
-      ? new Response(bytes, { headers: { 'Content-Type': 'application/octet-stream', 'Cache-Control': 'no-store' } })
+    const found = await original(env, d, f, await projectHead(env.DB, d, f))
+    return found
+      ? new Response(found.body, { headers: { 'Content-Type': 'application/octet-stream', 'Content-Length': String(found.length), 'Cache-Control': 'no-store' } })
       : new Response('No encontrado.', { status: 404 })
   }
   return new Response('No encontrado.', { status: 404 })

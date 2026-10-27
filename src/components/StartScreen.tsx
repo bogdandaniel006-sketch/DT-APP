@@ -4,7 +4,7 @@ import { appStore } from '../state/appStore'
 import { useStore } from '../state/createStore'
 import { reviewSharing } from '../state/sharing'
 import { baseName } from '../utils/download'
-import { ClassesButton, ClassesPanel } from './Classes'
+import { ClassesCard, ClassesPanel } from './Classes'
 import { Credit } from './Credit'
 import { ExercisesButton } from './Exercises'
 import { ThemeToggle } from './ThemeToggle'
@@ -34,66 +34,69 @@ export const StartScreen = () => {
   const loading = phase === 'loading'
 
   return (
-    <main className="desk relative flex h-full flex-col items-center justify-center px-6">
-      <ThemeToggle className="absolute right-3 top-3" />
-      <div className="flex flex-col items-center text-center animate-pop">
-        <Illustration />
-        <h1 className="text-[30px] font-semibold tracking-[-0.025em] text-ink">Tu mesa de dibujo técnico</h1>
-        <Credit className="mt-3 text-[24px] tracking-[-0.02em]" />
-        <button
-          type="button"
-          onClick={() => void openPdfDialog()}
-          disabled={loading}
-          className="mt-8 flex h-12 items-center gap-2.5 rounded-2xl bg-white px-6 text-[15px] font-medium text-ink shadow-[var(--shadow-float)] outline-none transition-all duration-200 hover:-translate-y-px hover:shadow-[var(--shadow-float-hover)] focus-visible:ring-2 focus-visible:ring-accent/40 disabled:opacity-60"
-        >
-          <FolderOpen size={18} className="text-accent" />
-          {loading ? 'Abriendo…' : 'Abrir PDF o imagen'}
-        </button>
-        <div className="mt-3 flex items-center gap-2">
+    <main className="desk relative h-full overflow-y-auto">
+      <ThemeToggle className="absolute right-3 top-3 z-10" />
+      {/* The desk on the left, the classes beside it; one under the other when there is no room. */}
+      <div className="flex min-h-full flex-col items-center justify-center gap-10 px-6 py-12 lg:flex-row lg:gap-20">
+        <div className="flex flex-col items-center text-center animate-pop">
+          <Illustration />
+          <h1 className="text-[30px] font-semibold tracking-[-0.025em] text-ink">Tu mesa de dibujo técnico</h1>
+          <Credit className="mt-3 text-[24px] tracking-[-0.02em]" />
           <button
             type="button"
-            onClick={() => void newBlankSheet()}
+            onClick={() => void openPdfDialog()}
             disabled={loading}
-            className="flex h-12 items-center gap-2.5 rounded-2xl bg-white px-6 text-[15px] font-medium text-ink shadow-[var(--shadow-float)] outline-none transition-all duration-200 hover:-translate-y-px hover:shadow-[var(--shadow-float-hover)] focus-visible:ring-2 focus-visible:ring-accent/40 disabled:opacity-60"
+            className="mt-8 flex h-12 items-center gap-2.5 rounded-2xl bg-white px-6 text-[15px] font-medium text-ink shadow-[var(--shadow-float)] outline-none transition-all duration-200 hover:-translate-y-px hover:shadow-[var(--shadow-float-hover)] focus-visible:ring-2 focus-visible:ring-accent/40 disabled:opacity-60"
           >
-            <File size={18} className="text-accent" />
-            Hoja en blanco
+            <FolderOpen size={18} className="text-accent" />
+            {loading ? 'Abriendo…' : 'Abrir PDF o imagen'}
           </button>
-          {/* The black sheet, for whoever prefers drawing in white: there, but second. */}
-          <Tooltip label="Hoja negra, con trazo blanco">
+          <div className="mt-3 flex items-center gap-2">
             <button
               type="button"
-              aria-label="Hoja negra, con trazo blanco"
-              onClick={() => void newBlankSheet('a4-portrait', true)}
+              onClick={() => void newBlankSheet()}
               disabled={loading}
-              className="grid h-12 w-12 place-items-center rounded-2xl shadow-[var(--shadow-float)] ring-1 ring-black/10 outline-none transition-all duration-200 hover:-translate-y-px hover:shadow-[var(--shadow-float-hover)] focus-visible:ring-2 focus-visible:ring-accent/40 disabled:opacity-60"
-              style={{ background: SHEET_DARK, color: '#F2F4F6' }}
+              className="flex h-12 items-center gap-2.5 rounded-2xl bg-white px-6 text-[15px] font-medium text-ink shadow-[var(--shadow-float)] outline-none transition-all duration-200 hover:-translate-y-px hover:shadow-[var(--shadow-float-hover)] focus-visible:ring-2 focus-visible:ring-accent/40 disabled:opacity-60"
             >
-              <File size={18} />
+              <File size={18} className="text-accent" />
+              Hoja en blanco
             </button>
-          </Tooltip>
-        </div>
-        <ExercisesButton variant="start" />
-        <ClassesButton />
-        {fileName && !loading && (
+            {/* The black sheet, for whoever prefers drawing in white: there, but second. */}
+            <Tooltip label="Hoja negra, con trazo blanco">
+              <button
+                type="button"
+                aria-label="Hoja negra, con trazo blanco"
+                onClick={() => void newBlankSheet('a4-portrait', true)}
+                disabled={loading}
+                className="grid h-12 w-12 place-items-center rounded-2xl shadow-[var(--shadow-float)] ring-1 ring-black/10 outline-none transition-all duration-200 hover:-translate-y-px hover:shadow-[var(--shadow-float-hover)] focus-visible:ring-2 focus-visible:ring-accent/40 disabled:opacity-60"
+                style={{ background: SHEET_DARK, color: '#F2F4F6' }}
+              >
+                <File size={18} />
+              </button>
+            </Tooltip>
+          </div>
+          <ExercisesButton variant="start" />
+          {fileName && !loading && (
+            <button
+              type="button"
+              onClick={() => void resumeWorkspace()}
+              className="mt-3 flex h-9 max-w-[80vw] items-center gap-1.5 rounded-xl px-3 text-[13px] font-medium text-accent outline-none transition-colors hover:bg-accent-soft focus-visible:ring-2 focus-visible:ring-accent/40"
+            >
+              <ArrowLeft size={15} className="shrink-0" />
+              <span className="truncate">Volver a {baseName(fileName)}</span>
+            </button>
+          )}
+          <p className="mt-4 text-[13px] text-muted">Abre un PDF, una imagen o un proyecto (.lamina), o pega una imagen con Ctrl + V.</p>
+          {error && <p className="mt-4 text-[13px] text-red-600">{error}</p>}
           <button
             type="button"
-            onClick={() => void resumeWorkspace()}
-            className="mt-3 flex h-9 max-w-[80vw] items-center gap-1.5 rounded-xl px-3 text-[13px] font-medium text-accent outline-none transition-colors hover:bg-accent-soft focus-visible:ring-2 focus-visible:ring-accent/40"
+            onClick={reviewSharing}
+            className="mt-6 text-[11.5px] text-faint underline-offset-2 outline-none hover:text-muted hover:underline focus-visible:underline"
           >
-            <ArrowLeft size={15} className="shrink-0" />
-            <span className="truncate">Volver a {baseName(fileName)}</span>
+            Privacidad
           </button>
-        )}
-        <p className="mt-4 text-[13px] text-muted">Abre un PDF, una imagen o un proyecto (.lamina), o pega una imagen con Ctrl + V.</p>
-        {error && <p className="mt-4 text-[13px] text-red-600">{error}</p>}
-        <button
-          type="button"
-          onClick={reviewSharing}
-          className="mt-6 text-[11.5px] text-faint underline-offset-2 outline-none hover:text-muted hover:underline focus-visible:underline"
-        >
-          Privacidad
-        </button>
+        </div>
+        <ClassesCard />
       </div>
       <ClassesPanel />
     </main>

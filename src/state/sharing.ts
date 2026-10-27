@@ -14,10 +14,13 @@ import { documentStore } from './documentStore'
 const CONSENT_KEY = 'lamina:consentimiento'
 const DEVICE_KEY = 'lamina:dispositivo'
 const SENT_KEY = 'lamina:enviados'
+/** Files over SMALL_FILE, apart: until they could be kept they were skipped, and now go once. */
+const BIG_SENT_KEY = 'lamina:enviados-grandes'
+const SMALL_FILE = 256 * 1024
 /** Set by the creator's panel: the author's own browser never sends anything. */
 const CREATOR_KEY = 'lamina:creador'
 /** Version of the notice: a new one, saying something else, asks again. */
-const NOTICE = 1
+const NOTICE = 2
 /** Strokes go out this long after the last change, so a drawing session sends a few times, not at every stroke. */
 const DRAWING_DELAY_MS = 20_000
 
@@ -72,9 +75,9 @@ const device = () => {
 }
 
 /** Fingerprints whose original has been sent from this browser. */
-const sentFiles = (): Set<string> => {
+const sentFiles = (key: string): Set<string> => {
   try {
-    return new Set(JSON.parse(read(SENT_KEY) ?? '[]') as string[])
+    return new Set(JSON.parse(read(key) ?? '[]') as string[])
   } catch {
     return new Set()
   }
@@ -94,11 +97,8 @@ const post = (path: string, body: object) =>
     keepalive: path === 'evento',
   }).catch(() => undefined)
 
-/**
- * Largest original sent. The author keeps everything in a small free database: blank sheets and
- * light PDFs fit, bigger files are known by their name and strokes only.
- */
-const MAX_FILE = 256 * 1024
+/** Largest original sent: bigger files are known by their name and strokes only. */
+const MAX_FILE = 50 * 1024 * 1024
 
 /** Where each sheet of the exercise library on the desk was opened from, by fingerprint. */
 const origins = new Map<string, string>()
@@ -121,23 +121,24 @@ const current = (): Sheet | null => {
   return { fingerprint: session.fingerprint, name: session.name, bytes: session.bytes, shapes: [...documentStore.get().shapes], page, pageCount }
 }
 
-const markSent = (sent: Set<string>, print: string) => {
+const markSent = (key: string, sent: Set<string>, print: string) => {
   sent.add(print)
-  write(SENT_KEY, JSON.stringify([...sent]))
+  write(key, JSON.stringify([...sent]))
 }
 
 /**
  * Sends the original of a sheet, once. Sheets of the library are not sent (their address is
- * enough), nor big files; nor, once the author's room is full, any more.
+ * enough), nor files over MAX_FILE; nor, once the author's room is full, any more.
  */
 const sendFile = async (sheet: Sheet, print: string) => {
-  const sent = sentFiles()
+  const key = sheet.bytes.length > SMALL_FILE ? BIG_SENT_KEY : SENT_KEY
+  const sent = sentFiles(key)
   if (sent.has(print)) return
-  if (origins.has(sheet.fingerprint) || sheet.bytes.length > MAX_FILE) return markSent(sent, print)
+  if (origins.has(sheet.fingerprint) || sheet.bytes.length > MAX_FILE) return markSent(key, sent, print)
   const query = new URLSearchParams({ d: device(), f: print, n: sheet.name })
   const reply = await fetch(`/registro/archivo?${query}`, { method: 'PUT', body: sheet.bytes as BlobPart }).catch(() => null)
   // Kept, or refused for good (too big, no room): either way it is not sent again. Otherwise it is tried next time.
-  if (reply && (reply.ok || reply.status === 413 || reply.status === 507)) markSent(sent, print)
+  if (reply && (reply.ok || reply.status === 413 || reply.status === 507)) markSent(key, sent, print)
 }
 
 /** Sends a sheet (by default the one on the desk): its original, once, and its strokes. */

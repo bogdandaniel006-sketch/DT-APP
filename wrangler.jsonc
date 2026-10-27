@@ -12,5 +12,17 @@
   },
   // Where the sheets and the activity of people who accepted are kept (see worker/registro.js).
   // The panel's password is the PANEL_CLAVE secret of the worker, set in Cloudflare, never here.
-  "d1_databases": [{ "binding": "DB", "database_name": "lamina", "database_id": "a975d384-931c-4711-9582-68cbf257e2a2" }]
+  // DB: the main one. CLASES1…7 and ARCHIVOS1…2 hold the big files, 500 MB each on the free plan (see worker/almacen.js).
+  "d1_databases": [
+    { "binding": "DB", "database_name": "lamina", "database_id": "a975d384-931c-4711-9582-68cbf257e2a2" },
+    { "binding": "CLASES1", "database_name": "lamina-clases-1", "database_id": "b28f3591-6f13-40f5-a04b-361fb63bafeb" },
+    { "binding": "CLASES2", "database_name": "lamina-clases-2", "database_id": "c017c348-0e25-4da1-8274-1f30d556984b" },
+    { "binding": "CLASES3", "database_name": "lamina-clases-3", "database_id": "82e788c5-7e7f-4b3b-86c3-6bfc0c1e9560" },
+    { "binding": "CLASES4", "database_name": "lamina-clases-4", "database_id": "ca94a393-a1fa-4916-b8e1-f28672a4db41" },
+    { "binding": "CLASES5", "database_name": "lamina-clases-5", "database_id": "95b58479-d98e-4689-9392-38b9861f9daf" },
+    { "binding": "CLASES6", "database_name": "lamina-clases-6", "database_id": "b76037c8-a7ff-4e7b-a6fe-d1b8bbf21abe" },
+    { "binding": "CLASES7", "database_name": "lamina-clases-7", "database_id": "997ab45d-2d31-48e2-924f-8695cc915380" },
+    { "binding": "ARCHIVOS1", "database_name": "lamina-archivos-1", "database_id": "bbd7ce4c-6374-4c7c-895f-56e68f0a95a6" },
+    { "binding": "ARCHIVOS2", "database_name": "lamina-archivos-2", "database_id": "3d0a75e2-74e1-4a03-b292-b4ba456ef546" }
+  ]
 }

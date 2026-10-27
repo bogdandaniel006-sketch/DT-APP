@@ -9,11 +9,13 @@
  *   POST /registro/dibujo    { d, f, n, paginas, pagina, dibujo, origen? }    the strokes, as they are now
  *   POST /registro/borrar    { d }                                            forget everything of a device
  *
- * All of it lives in the D1 database DB (free plan: 500 MB). Originals are kept only while small
- * and while they all fit in FILES_BUDGET, and strokes while they fit in DRAWINGS_BUDGET, so that
- * nobody sending junk can fill the database; exercises of the library are not kept at all, their
- * address (origen) is enough to open them again. Only the latest MAX_EVENTS events are kept.
+ * Events and strokes live in the main D1 database DB (free plan: 500 MB), strokes while they fit in
+ * DRAWINGS_BUDGET. Originals of any size up to MAX_FILE go to the databases kept for files (see
+ * almacen.js), while there is room in them; the first, small ones are still in the `archivos` table
+ * of DB. Exercises of the library are not kept at all, their address (origen) is enough to open
+ * them again. Only the latest MAX_EVENTS events are kept.
  */
+import { drop, put } from './almacen.js'
 import { slowDown, tooMany } from './limites.js'
 
 
@@ -23,9 +25,7 @@ const EVENT = /^[a-z-]{2,20}$/
 /** Address of a sheet of the library, as the app opens it. */
 export const ORIGIN = /^\/ejercicios\/[A-Za-z0-9_\-/.%+]+\.pdf$/
 /** Largest original kept (the app does not send bigger ones). */
-export const MAX_FILE = 256 * 1024
-/** Room for all the originals together. */
-const FILES_BUDGET = 150 * 1024 * 1024
+export const MAX_FILE = 50 * 1024 * 1024
 /** Room for all the strokes together. */
 const DRAWINGS_BUDGET = 200 * 1024 * 1024
 const MAX_DRAWING = 900 * 1024
@@ -46,6 +46,8 @@ export const tables = async (db) => {
       'CREATE TABLE IF NOT EXISTS laminas (dispositivo TEXT NOT NULL, huella TEXT NOT NULL, nombre TEXT, paginas INTEGER, trazos INTEGER, dibujo TEXT, origen TEXT, creada INTEGER, actualizada INTEGER, exportada INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (dispositivo, huella))',
     ),
     db.prepare('CREATE TABLE IF NOT EXISTS archivos (dispositivo TEXT NOT NULL, huella TEXT NOT NULL, datos BLOB NOT NULL, PRIMARY KEY (dispositivo, huella))'),
+    // Where each original kept in the file databases is (`almacen`: which of them), under the owner '<d>/<f>'.
+    db.prepare('CREATE TABLE IF NOT EXISTS archivos_en (dispositivo TEXT NOT NULL, huella TEXT NOT NULL, almacen INTEGER NOT NULL, bytes INTEGER NOT NULL, PRIMARY KEY (dispositivo, huella))'),
     // Bytes kept of originals and of strokes, so the budgets are checked without reading every row.
     db.prepare('CREATE TABLE IF NOT EXISTS uso (clave TEXT PRIMARY KEY, bytes INTEGER NOT NULL)'),
   ])
@@ -71,6 +73,37 @@ const readJson = async (request, max) => {
   return JSON.parse(body)
 }
 
+/**
+ * Keeps the original of a sheet, once, in the file databases. Out of room the sheet is still
+ * listed, with its strokes; only its original is not kept.
+ */
+const keepFile = async (request, env, now) => {
+  const db = env.DB
+  const url = new URL(request.url)
+  const d = url.searchParams.get('d') ?? ''
+  const f = url.searchParams.get('f') ?? ''
+  if (!DEVICE.test(d) || !PRINT.test(f)) return answer(400)
+  if (Number(request.headers.get('content-length') ?? 0) > MAX_FILE) return answer(413)
+  const bytes = new Uint8Array(await request.arrayBuffer())
+  if (bytes.length > MAX_FILE) return answer(413)
+  if (!new TextDecoder('latin1').decode(bytes.subarray(0, 1024)).includes('%PDF-')) return answer(400)
+  const owner = `${d}/${f}`
+  const before = await db.prepare('SELECT almacen, bytes FROM archivos_en WHERE dispositivo = ?1 AND huella = ?2').bind(d, f).first()
+  const where = await put(env, 'archivos', owner + ':nuevo', bytes)
+  if (!where) return answer(507, { ok: false })
+  // Written under a passing name first, so the earlier copy is only dropped once the new one is safe.
+  if (before) await drop(env, 'archivos', before.almacen, owner, before.bytes)
+  await env['ARCHIVOS' + where].prepare("UPDATE trozos SET dueno = ?1 WHERE dueno = ?1 || ':nuevo'").bind(owner).run()
+  const name = text(url.searchParams.get('n'), 200) ?? 'lamina.pdf'
+  await db.batch([
+    db.prepare('INSERT OR REPLACE INTO archivos_en (dispositivo, huella, almacen, bytes) VALUES (?1, ?2, ?3, ?4)').bind(d, f, where, bytes.length),
+    db
+      .prepare('INSERT INTO laminas (dispositivo, huella, nombre, creada, actualizada) VALUES (?1, ?2, ?3, ?4, ?4) ON CONFLICT (dispositivo, huella) DO UPDATE SET nombre = ?3')
+      .bind(d, f, name, now),
+  ])
+  return answer(200)
+}
+
 export const registro = async (request, env, action) => {
   if (!env.DB) return answer(503, { ok: false })
   if (tooMany(request, 'registro-' + action, PER_MINUTE[action] ?? 10)) return slowDown()
@@ -78,28 +111,7 @@ export const registro = async (request, env, action) => {
   await tables(db)
   const now = Date.now()
 
-  if (action === 'archivo' && request.method === 'PUT') {
-    const url = new URL(request.url)
-    const d = url.searchParams.get('d') ?? ''
-    const f = url.searchParams.get('f') ?? ''
-    if (!DEVICE.test(d) || !PRINT.test(f)) return answer(400)
-    if (Number(request.headers.get('content-length') ?? 0) > MAX_FILE) return answer(413)
-    const bytes = new Uint8Array(await request.arrayBuffer())
-    if (bytes.length > MAX_FILE) return answer(413)
-    if (!new TextDecoder('latin1').decode(bytes.subarray(0, 1024)).includes('%PDF-')) return answer(400)
-    const before = (await db.prepare('SELECT LENGTH(datos) AS antes FROM archivos WHERE dispositivo = ?1 AND huella = ?2').bind(d, f).first())?.antes ?? 0
-    // Out of room the sheet is still listed, with its strokes; only its original is not kept.
-    if ((await usage(db, 'archivos')) - before + bytes.length > FILES_BUDGET) return answer(507, { ok: false })
-    const name = text(url.searchParams.get('n'), 200) ?? 'lamina.pdf'
-    await db.batch([
-      db.prepare('INSERT OR REPLACE INTO archivos (dispositivo, huella, datos) VALUES (?1, ?2, ?3)').bind(d, f, bytes),
-      addUsage(db, 'archivos', bytes.length - before),
-      db
-        .prepare('INSERT INTO laminas (dispositivo, huella, nombre, creada, actualizada) VALUES (?1, ?2, ?3, ?4, ?4) ON CONFLICT (dispositivo, huella) DO UPDATE SET nombre = ?3')
-        .bind(d, f, name, now),
-    ])
-    return answer(200)
-  }
+  if (action === 'archivo' && request.method === 'PUT') return keepFile(request, env, now)
   if (request.method !== 'POST') return answer(405)
 
   let body
@@ -144,6 +156,8 @@ export const registro = async (request, env, action) => {
   }
 
   if (action === 'borrar') {
+    const kept = (await db.prepare('SELECT huella, almacen, bytes FROM archivos_en WHERE dispositivo = ?1').bind(d).all()).results
+    for (const k of kept) await drop(env, 'archivos', k.almacen, `${d}/${k.huella}`, k.bytes)
     const held = await db
       .prepare('SELECT (SELECT COALESCE(SUM(LENGTH(dibujo)), 0) FROM laminas WHERE dispositivo = ?1) AS dibujos, (SELECT COALESCE(SUM(LENGTH(datos)), 0) FROM archivos WHERE dispositivo = ?1) AS archivos')
       .bind(d)
@@ -154,6 +168,7 @@ export const registro = async (request, env, action) => {
       db.prepare('DELETE FROM eventos WHERE dispositivo = ?1').bind(d),
       db.prepare('DELETE FROM laminas WHERE dispositivo = ?1').bind(d),
       db.prepare('DELETE FROM archivos WHERE dispositivo = ?1').bind(d),
+      db.prepare('DELETE FROM archivos_en WHERE dispositivo = ?1').bind(d),
     ])
     return answer(200)
   }

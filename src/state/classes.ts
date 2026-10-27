@@ -55,6 +55,8 @@ export interface TeacherView {
   alumnos: string
   creada: number
   bytes: number
+  /** Room the class may fill. */
+  espacio: number
   ejercicios: ClassExercise[]
   entregas: SentSheet[]
 }
@@ -76,7 +78,7 @@ const load = (): { teacher: TeacherClass[]; pupil: PupilClass[] } => {
   }
 }
 
-export const classStore = createStore<{ teacher: TeacherClass[]; pupil: PupilClass[]; panelOpen: boolean }>({ ...load(), panelOpen: false })
+export const classStore = createStore<{ teacher: TeacherClass[]; pupil: PupilClass[] }>(load())
 
 const remember = (patch: Partial<{ teacher: TeacherClass[]; pupil: PupilClass[] }>) => {
   classStore.set(patch)
@@ -87,9 +89,6 @@ const remember = (patch: Partial<{ teacher: TeacherClass[]; pupil: PupilClass[] 
     /* storage unavailable: the classes last until the page is closed */
   }
 }
-
-export const openClasses = () => classStore.set({ panelOpen: true })
-export const closeClasses = () => classStore.set({ panelOpen: false })
 
 /** What was typed, as the server keeps it: capitals, without spaces or dashes. */
 export const cleanCode = (typed: string) => typed.toUpperCase().replace(/[^A-Z0-9]/g, '')

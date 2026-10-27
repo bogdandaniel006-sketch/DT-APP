@@ -9,7 +9,6 @@ import {
   SENT_TAG,
   classStore,
   cleanCode,
-  closeClasses,
   createClass,
   deleteClass,
   deleteExercise,
@@ -18,7 +17,6 @@ import {
   forgetClass,
   isTeacherCode,
   joinClass,
-  openClasses,
   pupilView,
   sendSheet,
   sentSheet,
@@ -28,9 +26,10 @@ import {
   uploadExercise,
   type PupilClass,
   type PupilView,
+  type SentSheet,
   type TeacherView,
 } from '../state/classes'
-import { useStore } from '../state/createStore'
+import { createStore, useStore } from '../state/createStore'
 import { documentStore } from '../state/documentStore'
 import { touchStore } from '../utils/device'
 import { baseName } from '../utils/download'
@@ -44,6 +43,11 @@ type Screen =
   | { kind: 'join' }
   | { kind: 'teacher'; code: string; fresh?: boolean }
   | { kind: 'pupil'; room: PupilClass }
+
+/** The classes window: closed, or open on a screen. */
+const panelStore = createStore<{ screen: Screen | null }>({ screen: null })
+export const openPanel = (screen: Screen = { kind: 'home' }) => panelStore.set({ screen })
+const closePanel = () => panelStore.set({ screen: null })
 
 const PRIMARY =
   'flex h-10 items-center justify-center gap-2 rounded-xl bg-accent px-4 text-[13.5px] font-medium text-white outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-accent/40 disabled:opacity-50'
@@ -272,7 +276,7 @@ const Join = ({ go }: { go: (s: Screen) => void }) => {
 }
 
 const MB = 1024 * 1024
-const megabytes = (bytes: number) => `${(bytes / MB).toFixed(1).replace('.', ',')} MB`
+const megabytes = (bytes: number) => `${bytes >= 10 * MB ? Math.round(bytes / MB) : (bytes / MB).toFixed(1).replace('.', ',')} MB`
 
 /** The teacher's class: the codes, the exercises put up and the sheets pupils sent. */
 const Teacher = ({ code, fresh, go, close }: { code: string; fresh?: boolean; go: (s: Screen) => void; close: () => void }) => {
@@ -323,10 +327,10 @@ const Teacher = ({ code, fresh, go, close }: { code: string; fresh?: boolean; go
       close()
     })
 
-  const openSent = (id: string) =>
-    run('abrir' + id, async () => {
-      const project = await sentSheet(code, id)
-      await loadPdf(project.bytes, project.name, { drawing: project, tag: SENT_TAG + id })
+  const openSent = (sheet: SentSheet) =>
+    run('abrir' + sheet.id, async () => {
+      const project = await sentSheet(code, sheet.id)
+      await loadPdf(project.bytes, `${sheet.alumno} · ${sheet.titulo}.pdf`, { drawing: project, tag: SENT_TAG + sheet.id })
       close()
     })
 
@@ -446,7 +450,7 @@ const Teacher = ({ code, fresh, go, close }: { code: string; fresh?: boolean; go
                   )}
                 </span>
               </span>
-              <button type="button" className={SOFT} onClick={() => void openSent(s.id)} disabled={busy !== null}>
+              <button type="button" className={SOFT} onClick={() => void openSent(s)} disabled={busy !== null}>
                 {busy === 'abrir' + s.id ? 'Abriendo…' : 'Abrir'}
               </button>
               <IconButton
@@ -470,7 +474,7 @@ const Teacher = ({ code, fresh, go, close }: { code: string; fresh?: boolean; go
 
       <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-black/[0.06] pt-3">
         <p className="flex-1 text-[11.5px] leading-snug text-faint">
-          {megabytes(view.bytes)} de 60 MB usados. Una clase que nadie abre en 6 meses se borra sola.
+          {megabytes(view.bytes)} de {megabytes(view.espacio)} usados. Una clase que nadie abre en 6 meses se borra sola.
         </p>
         <button
           type="button"
@@ -586,10 +590,11 @@ const TITLES: Record<Screen['kind'], string> = {
 
 /** Classes: opened from the start screen only. */
 export const ClassesPanel = () => {
-  const open = useStore(classStore, (s) => s.panelOpen)
+  const screen = useStore(panelStore, (s) => s.screen)
   const teacher = useStore(classStore, (s) => s.teacher)
   const pupil = useStore(classStore, (s) => s.pupil)
-  const [screen, setScreen] = useState<Screen>({ kind: 'home' })
+  const open = screen !== null
+  const setScreen = (next: Screen) => openPanel(next)
 
   useEffect(() => {
     if (!open) return
@@ -597,25 +602,20 @@ export const ClassesPanel = () => {
       e.stopPropagation()
       if (e.key !== 'Escape') return
       e.preventDefault()
-      closeClasses()
+      closePanel()
     }
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
   }, [open])
 
-  // Back on the first screen each time it opens.
-  useEffect(() => {
-    if (open) setScreen({ kind: 'home' })
-  }, [open])
-
-  if (!open) return null
+  if (!screen) return null
   const name =
     screen.kind === 'teacher' ? (teacher.find((c) => c.code === screen.code)?.name ?? 'Clase') : screen.kind === 'pupil' ? (pupil.find((c) => c.code === screen.room.code)?.name ?? screen.room.name) : TITLES[screen.kind]
 
   return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/20 p-3 backdrop-blur-[2px] sm:items-center sm:p-6"
-      onPointerDown={(e) => e.target === e.currentTarget && closeClasses()}
+      onPointerDown={(e) => e.target === e.currentTarget && closePanel()}
     >
       <section
         role="dialog"
@@ -635,7 +635,7 @@ export const ClassesPanel = () => {
             </p>
             <h2 className="truncate text-[20px] font-semibold tracking-[-0.02em] text-ink">{name}</h2>
           </div>
-          <IconButton label="Cerrar" onClick={closeClasses}>
+          <IconButton label="Cerrar" onClick={closePanel}>
             <X size={18} />
           </IconButton>
         </header>
@@ -644,8 +644,8 @@ export const ClassesPanel = () => {
           {screen.kind === 'create' && <Create go={setScreen} />}
           {screen.kind === 'teacher-login' && <TeacherLogin go={setScreen} />}
           {screen.kind === 'join' && <Join go={setScreen} />}
-          {screen.kind === 'teacher' && <Teacher key={screen.code} code={screen.code} fresh={screen.fresh} go={setScreen} close={closeClasses} />}
-          {screen.kind === 'pupil' && <Pupil key={screen.room.code} room={screen.room} go={setScreen} close={closeClasses} />}
+          {screen.kind === 'teacher' && <Teacher key={screen.code} code={screen.code} fresh={screen.fresh} go={setScreen} close={closePanel} />}
+          {screen.kind === 'pupil' && <Pupil key={screen.room.code} room={screen.room} go={setScreen} close={closePanel} />}
         </div>
       </section>
     </div>,
@@ -653,17 +653,80 @@ export const ClassesPanel = () => {
   )
 }
 
-/** The way into the classes, on the start screen: there, but quiet. */
-export const ClassesButton = () => (
-  <button
-    type="button"
-    onClick={openClasses}
-    className="mt-2 flex h-9 items-center gap-1.5 rounded-xl px-3 text-[13px] font-medium text-accent outline-none transition-colors hover:bg-accent-soft focus-visible:ring-2 focus-visible:ring-accent/40"
-  >
-    <GraduationCap size={16} />
-    Clases: el profe manda láminas, los alumnos las hacen en casa
-  </button>
-)
+/** The classes on the start screen, large, beside the desk: the way in for teachers and pupils. */
+export const ClassesCard = () => {
+  const teacher = useStore(classStore, (s) => s.teacher)
+  const pupil = useStore(classStore, (s) => s.pupil)
+  const mine = teacher.length + pupil.length > 0
+  return (
+    <aside aria-label="Clases" className="float animate-pop w-full max-w-[380px] rounded-3xl p-6 text-left">
+      <div className="flex items-center gap-3">
+        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-accent-soft text-accent">
+          <GraduationCap size={24} />
+        </span>
+        <div>
+          <h2 className="text-[22px] font-semibold tracking-[-0.02em] text-ink">Clases</h2>
+          <p className="text-[12.5px] text-muted">Para profes y alumnos · sin cuentas</p>
+        </div>
+      </div>
+      <p className="mt-4 text-[13.5px] leading-relaxed text-ink/80">
+        El profe sube las láminas y reparte un código. Los alumnos las hacen desde casa, aquí mismo, y si quieren se las envían para que las vea.
+      </p>
+      {mine && (
+        <div className="mt-4">
+          <p className="mb-1 text-[11px] font-medium uppercase tracking-wider text-faint">Tus clases</p>
+          <div className="flex flex-col gap-1">
+            {teacher.map((c) => (
+              <button
+                key={c.code}
+                type="button"
+                onClick={() => openPanel({ kind: 'teacher', code: c.code })}
+                className="flex items-center gap-2.5 rounded-xl bg-black/[0.03] px-3 py-2.5 text-left text-[13.5px] text-ink outline-none transition-colors hover:bg-accent-soft focus-visible:ring-2 focus-visible:ring-accent/40"
+              >
+                <GraduationCap size={16} className="shrink-0 text-accent" />
+                <span className="flex-1 truncate font-medium">{c.name}</span>
+                <span className="text-[11px] font-medium text-accent">Profesor</span>
+              </button>
+            ))}
+            {pupil.map((c) => (
+              <button
+                key={c.code}
+                type="button"
+                onClick={() => openPanel({ kind: 'pupil', room: c })}
+                className="flex items-center gap-2.5 rounded-xl bg-black/[0.03] px-3 py-2.5 text-left text-[13.5px] text-ink outline-none transition-colors hover:bg-accent-soft focus-visible:ring-2 focus-visible:ring-accent/40"
+              >
+                <UserRound size={16} className="shrink-0 text-accent" />
+                <span className="flex-1 truncate font-medium">{c.name}</span>
+                <span className="text-[11px] text-muted">{c.pupil}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      <div className="mt-5 flex flex-col gap-2">
+        <button type="button" onClick={() => openPanel({ kind: 'create' })} className={`${PRIMARY} h-11 text-[14px]`}>
+          <GraduationCap size={17} />
+          Crear una clase · soy profe
+        </button>
+        <button
+          type="button"
+          onClick={() => openPanel({ kind: 'join' })}
+          className="flex h-11 items-center justify-center gap-2 rounded-xl bg-accent-soft px-4 text-[14px] font-medium text-accent outline-none transition-colors hover:bg-accent/20 focus-visible:ring-2 focus-visible:ring-accent/40"
+        >
+          <Users size={17} />
+          Unirme con un código · soy alumno
+        </button>
+        <button
+          type="button"
+          onClick={() => openPanel({ kind: 'teacher-login' })}
+          className="mt-1 self-center text-[12.5px] font-medium text-muted underline-offset-2 outline-none hover:text-accent hover:underline focus-visible:underline"
+        >
+          Ya tengo mi código de profesor
+        </button>
+      </div>
+    </aside>
+  )
+}
 
 const TIP_KEY = 'lamina:aviso-clases'
 const TIP_EVERY_DAYS = 6
@@ -715,7 +778,7 @@ export const ClassesTip = () => {
         onClick={() => {
           setShown(false)
           goToStart()
-          openClasses()
+          openPanel()
         }}
         className="h-8 shrink-0 rounded-[10px] bg-accent px-3 text-[12.5px] font-medium text-white outline-none transition-opacity hover:opacity-90"
       >

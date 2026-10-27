@@ -51,8 +51,8 @@ export const ConsentNotice = () => {
       </header>
       <div className="mt-2 space-y-2 text-[13px] leading-snug text-ink/80">
         <p>
-          Si aceptas, se envían al autor de Lámina <b className="font-semibold text-ink">copias de las láminas que abras y dibujes</b> (tus trazos y,
-          si ocupa poco, el archivo) y lo que haces en la app: abrir, exportar y guardar. Solo sirven para encontrar fallos y mejorar la app, y no se comparten con
+          Si aceptas, se envían al autor de Lámina <b className="font-semibold text-ink">copias de las láminas que abras y dibujes</b> (tus trazos y el
+          archivo) y lo que haces en la app: abrir, exportar y guardar. Solo sirven para encontrar fallos y mejorar la app, y no se comparten con
           nadie.
         </p>
         <p>Si rechazas, no sale nada de tu ordenador y la app funciona exactamente igual.</p>
