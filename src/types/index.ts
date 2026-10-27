@@ -135,6 +135,7 @@ export type ToolId =
   | 'hatch'
   | 'conic'
   | 'freehand'
+  | 'format'
   | 'eraser'
 
 export type InstrumentKind = 'escuadra' | 'cartabon'

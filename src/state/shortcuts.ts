@@ -18,6 +18,7 @@ export const SHORTCUT_ACTIONS = [
   { id: 'text', label: 'Texto', key: 'x' },
   { id: 'hatch', label: 'Rayado', key: 'h' },
   { id: 'freehand', label: 'Mano alzada', key: 'g' },
+  { id: 'format', label: 'Copiar formato', key: 'b' },
   { id: 'flip', label: 'Voltear la escuadra o el cartabón', key: 'f' },
   { id: 'loupe', label: 'Lupa de precisión', key: 'z' },
   { id: 'layer-construccion', label: 'Capa Construcción', key: '1' },

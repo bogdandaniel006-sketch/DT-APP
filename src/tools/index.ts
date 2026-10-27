@@ -12,6 +12,7 @@ import { createTextTool } from './textTool'
 import { createConicTool } from './conicTool'
 import { createHatchTool } from './hatchTool'
 import { createFreehandTool } from './freehandTool'
+import { createFormatTool } from './formatTool'
 import type { Tool } from './types'
 
 export const createTools = (): Record<ToolId, Tool> => ({
@@ -32,6 +33,7 @@ export const createTools = (): Record<ToolId, Tool> => ({
   hatch: createHatchTool(),
   conic: createConicTool(),
   freehand: createFreehandTool(),
+  format: createFormatTool(),
   eraser: createEraserTool(),
 })
 
