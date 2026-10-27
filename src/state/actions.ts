@@ -383,6 +383,13 @@ export const duplicateSelection = () => {
   appStore.set({ tool: 'select', selection: copies.map((s) => s.id) })
 }
 
+/** The sheet on the desk has just been sent to a teacher: its tab remembers when. */
+export const noteTabSent = () => {
+  const { tabs, activeTab } = appStore.get()
+  appStore.set({ tabs: tabs.map((t) => (t.id === activeTab ? { ...t, sentAt: Date.now() } : t)) })
+  rememberTabs()
+}
+
 /** Brings a sheet into view. Constructions in progress are kept: pages share one desk. */
 export const goToPage = (page: number) => {
   const { pageCount } = appStore.get()

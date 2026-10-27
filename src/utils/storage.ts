@@ -102,6 +102,8 @@ export interface StoredTab {
   tag?: string
   /** An exercise of a class, opened from the class: sent back to it, only the strokes travel. */
   exercise?: ExerciseRef
+  /** When this sheet was last sent to a teacher from here. */
+  sentAt?: number
 }
 
 const TABS_KEY = 'lamina:tabs'

@@ -10,6 +10,7 @@ import { Toolbar } from './components/Toolbar'
 import { TopBar } from './components/TopBar'
 import { TouchHelp, TouchOffer } from './components/TouchHelp'
 import { ClassesTip } from './components/Classes'
+import { ClassNews, PupilSendBar, SendWindow, useClassNews } from './components/ClassDesk'
 import { useAutosave } from './hooks/useAutosave'
 import { useKeyboard } from './hooks/useKeyboard'
 import { useLockBrowserView } from './hooks/useLockBrowserView'
@@ -35,6 +36,7 @@ export const App = () => {
   const [hasWorkspace, setHasWorkspace] = useState(false)
   useAutosave()
   useLockBrowserView()
+  useClassNews()
   useEffect(watchDrawing, [])
 
   useEffect(() => {
@@ -124,6 +126,9 @@ export const App = () => {
             <TouchHelp />
             <TouchOffer />
             <ClassesTip />
+            <PupilSendBar />
+            <ClassNews place="desk" />
+            <SendWindow />
             <div className="pointer-events-none absolute bottom-4 left-5 z-10 hidden sm:block short:hidden">
               <Credit className="text-[12.5px] opacity-75" />
             </div>

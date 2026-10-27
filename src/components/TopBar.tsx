@@ -10,7 +10,7 @@ import { documentActions, documentStore } from '../state/documentStore'
 import { noteExported } from '../state/sharing'
 import { shortcutLabel, shortcutStore } from '../state/shortcuts'
 import { pickPdf } from '../utils/filePicker'
-import { SendToTeacher } from './Classes'
+import { openSend } from './ClassDesk'
 import { ControlsMenu } from './ControlsMenu'
 import { Credit } from './Credit'
 import { ExercisesButton } from './Exercises'
@@ -35,7 +35,6 @@ export const openPdfDialog = async () => {
 const SaveMenu = () => {
   const savedAt = useStore(appStore, (s) => s.savedAt)
   const inClass = useStore(classStore, (s) => s.pupil.length > 0)
-  const [sending, setSending] = useState(false)
   const saveFailed = useStore(appStore, (s) => s.saveFailed)
   const [busy, setBusy] = useState(false)
 
@@ -101,7 +100,7 @@ const SaveMenu = () => {
               hint="solo si quieres"
               onSelect={() => {
                 close()
-                setSending(true)
+                openSend()
               }}
             />
           )}
@@ -124,7 +123,6 @@ const SaveMenu = () => {
         </div>
       )}
     </Popover>
-    {sending && <SendToTeacher onClose={() => setSending(false)} />}
     </>
   )
 }

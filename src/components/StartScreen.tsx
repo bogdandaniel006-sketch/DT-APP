@@ -5,12 +5,11 @@ import { useStore } from '../state/createStore'
 import { reviewSharing } from '../state/sharing'
 import { baseName } from '../utils/download'
 import { ClassesCard, ClassesPanel } from './Classes'
+import { ClassNews } from './ClassDesk'
 import { Credit } from './Credit'
 import { ExercisesButton } from './Exercises'
 import { ThemeToggle } from './ThemeToggle'
 import { openPdfDialog } from './TopBar'
-import { Tooltip } from './ui/Tooltip'
-import { SHEET_DARK } from '../canvas/style'
 
 /** A quiet construction drawing: a triangle, its circumcircle and a few helper arcs. */
 const Illustration = () => (
@@ -61,19 +60,6 @@ export const StartScreen = () => {
               <File size={18} className="text-accent" />
               Hoja en blanco
             </button>
-            {/* The black sheet, for whoever prefers drawing in white: there, but second. */}
-            <Tooltip label="Hoja negra, con trazo blanco">
-              <button
-                type="button"
-                aria-label="Hoja negra, con trazo blanco"
-                onClick={() => void newBlankSheet('a4-portrait', true)}
-                disabled={loading}
-                className="grid h-12 w-12 place-items-center rounded-2xl shadow-[var(--shadow-float)] ring-1 ring-black/10 outline-none transition-all duration-200 hover:-translate-y-px hover:shadow-[var(--shadow-float-hover)] focus-visible:ring-2 focus-visible:ring-accent/40 disabled:opacity-60"
-                style={{ background: SHEET_DARK, color: '#F2F4F6' }}
-              >
-                <File size={18} />
-              </button>
-            </Tooltip>
           </div>
           <ExercisesButton variant="start" />
           {fileName && !loading && (
@@ -99,6 +85,7 @@ export const StartScreen = () => {
         <ClassesCard />
       </div>
       <ClassesPanel />
+      <ClassNews place="start" />
     </main>
   )
 }

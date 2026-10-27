@@ -15,6 +15,9 @@
  *   POST /clases/entrega/<id>         (teacher's code)                → the sheet as a project file
  *   POST /clases/borrar-entrega/<id>  (teacher's code)
  *   POST /clases/borrar               (teacher's code)                the whole class, for good
+ *   POST /clases/mias                 (pupils' code, X-Clave)         → what this pupil sent
+ *   POST /clases/mia/<id>             (pupils' code, X-Clave)         → one of them, as a project file
+ *   POST /clases/borrar-mia/<id>      (pupils' code, X-Clave)
  *
  * The code goes in the X-Codigo header, never in the address. The class, its exercises and what
  * was sent are listed in the main database (DB); the files themselves go to the databases kept for
@@ -32,7 +35,7 @@ const MAX_SENT = 40 * 1024 * 1024
 /** Room for one class: no class may fill the space of all the others. */
 export const CLASS_BUDGET = 250 * 1024 * 1024
 const IDLE_DAYS = 180
-const PER_MINUTE = { crear: 6, profesor: 30, alumno: 30, ejercicio: 40, 'ejercicio-web': 40, 'borrar-ejercicio': 30, entregar: 10, entrega: 60, 'borrar-entrega': 60, borrar: 6 }
+const PER_MINUTE = { crear: 6, profesor: 30, alumno: 30, ejercicio: 40, 'ejercicio-web': 40, 'borrar-ejercicio': 30, entregar: 10, entrega: 60, 'borrar-entrega': 60, borrar: 6, mias: 30, mia: 60, 'borrar-mia': 30 }
 
 /** Letters and figures that cannot be mistaken for each other (no 0/O, 1/I/L). */
 const ALPHABET = '23456789ABCDEFGHJKMNPQRSTUVWXYZ'
@@ -93,6 +96,9 @@ const projectPdfStart = (bytes) => {
     return null
   }
 }
+
+const print = async (key) =>
+  [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode('clave:' + key)))].slice(0, 6).map((b) => b.toString(16).padStart(2, '0')).join('')
 
 const isPdf = (bytes) => new TextDecoder('latin1').decode(bytes.subarray(0, 1024)).includes('%PDF-')
 
@@ -156,7 +162,9 @@ export const clases = async (request, env, path) => {
   await db.prepare('UPDATE clases SET usada = ?2 WHERE id = ?1').bind(room.id, now).run()
 
   if (action === 'profesor') {
-    const sent = (await db.prepare('SELECT id, alumno, clave, titulo, ejercicio, bytes, fecha FROM entregas_clase WHERE clase = ?1 ORDER BY fecha DESC').bind(room.id).all()).results
+    const rows = (await db.prepare('SELECT id, alumno, clave, titulo, ejercicio, bytes, fecha FROM entregas_clase WHERE clase = ?1 ORDER BY fecha DESC').bind(room.id).all()).results
+    // Each pupil's key stays theirs: the teacher gets a print of it, enough to tell devices apart.
+    const sent = await Promise.all(rows.map(async (r) => ({ ...r, clave: await print(r.clave) })))
     return answer(200, {
       ok: true,
       nombre: room.nombre,
@@ -287,25 +295,25 @@ export const clases = async (request, env, path) => {
       await db.batch([db.prepare('DELETE FROM entregas_clase WHERE id = ?1').bind(id), addUsage(db, room.id, -sheet.bytes)])
       return answer(200)
     }
-    const headers = { 'Content-Type': 'application/octet-stream', 'Cache-Control': 'no-store' }
-    if (!sheet.ejercicio) {
-      // Sent with its own PDF: the project file, as the pupil sent it.
-      const whole = await stream(env, 'clases', sheet.almacen, 's' + id)
-      return whole ? new Response(whole, { headers: { ...headers, 'Content-Length': String(sheet.bytes) } }) : failed(404, 'No se encuentra el archivo de esta lámina.')
+    return serveSheet(env, sheet)
+  }
+
+  if (action === 'mias' || action === 'mia' || action === 'borrar-mia') {
+    const key = String(request.headers.get('X-Clave') ?? '')
+    if (!/^[a-z0-9-]{8,40}$/.test(key)) return failed(400, 'Falta tu clave de alumno.')
+    if (action === 'mias') {
+      const mine = (await db.prepare('SELECT id, titulo, ejercicio, bytes, fecha FROM entregas_clase WHERE clase = ?1 AND clave = ?2 ORDER BY fecha DESC').bind(room.id, key).all()).results
+      return answer(200, { ok: true, entregas: mine })
     }
-    // On an exercise: the strokes the pupil sent, then the exercise's PDF.
-    const exercise = await db.prepare('SELECT bytes, almacen, origen FROM ejercicios_clase WHERE id = ?1').bind(sheet.ejercicio).first()
-    const strokes = await read(env, 'clases', sheet.almacen, 's' + id)
-    if (exercise?.origen && strokes) {
-      const sheetPdf = await librarySheet(exercise.origen)
-      if (!sheetPdf) return failed(502, 'No se ha podido traer la ficha de su web. Prueba en un rato.')
-      const out = new Uint8Array(strokes.length + sheetPdf.length)
-      out.set(strokes)
-      out.set(sheetPdf, strokes.length)
-      return new Response(out, { headers })
+    if (request.method !== 'POST' || !ID.test(id ?? '')) return failed(400, 'Lámina no válida.')
+    const sheet = await db.prepare('SELECT * FROM entregas_clase WHERE id = ?1 AND clase = ?2 AND clave = ?3').bind(id, room.id, key).first()
+    if (!sheet) return failed(404, 'Esa lámina ya no está en la clase.')
+    if (action === 'borrar-mia') {
+      await drop(env, 'clases', sheet.almacen, 's' + id, sheet.bytes)
+      await db.batch([db.prepare('DELETE FROM entregas_clase WHERE id = ?1').bind(id), addUsage(db, room.id, -sheet.bytes)])
+      return answer(200)
     }
-    const pdf = exercise && strokes ? await stream(env, 'clases', exercise.almacen, 'e' + sheet.ejercicio, strokes) : null
-    return pdf ? new Response(pdf, { headers: { ...headers, 'Content-Length': String(strokes.length + exercise.bytes) } }) : failed(404, 'No se encuentra el archivo de esta lámina.')
+    return serveSheet(env, sheet)
   }
 
   if (action === 'borrar') {
@@ -314,6 +322,31 @@ export const clases = async (request, env, path) => {
     return answer(200)
   }
   return failed(404, 'No encontrado.')
+}
+
+/** A sent sheet as the project file the app opens. */
+const serveSheet = async (env, sheet) => {
+  const db = env.DB
+  const id = sheet.id
+  const headers = { 'Content-Type': 'application/octet-stream', 'Cache-Control': 'no-store' }
+  if (!sheet.ejercicio) {
+    // Sent with its own PDF: the project file, as the pupil sent it.
+    const whole = await stream(env, 'clases', sheet.almacen, 's' + id)
+    return whole ? new Response(whole, { headers: { ...headers, 'Content-Length': String(sheet.bytes) } }) : failed(404, 'No se encuentra el archivo de esta lámina.')
+  }
+  // On an exercise: the strokes the pupil sent, then the exercise's PDF.
+  const exercise = await db.prepare('SELECT bytes, almacen, origen FROM ejercicios_clase WHERE id = ?1').bind(sheet.ejercicio).first()
+  const strokes = await read(env, 'clases', sheet.almacen, 's' + id)
+  if (exercise?.origen && strokes) {
+    const sheetPdf = await librarySheet(exercise.origen)
+    if (!sheetPdf) return failed(502, 'No se ha podido traer la ficha de su web. Prueba en un rato.')
+    const out = new Uint8Array(strokes.length + sheetPdf.length)
+    out.set(strokes)
+    out.set(sheetPdf, strokes.length)
+    return new Response(out, { headers })
+  }
+  const pdf = exercise && strokes ? await stream(env, 'clases', exercise.almacen, 'e' + sheet.ejercicio, strokes) : null
+  return pdf ? new Response(pdf, { headers: { ...headers, 'Content-Length': String(strokes.length + exercise.bytes) } }) : failed(404, 'No se encuentra el archivo de esta lámina.')
 }
 
 /** Every class, for the creator's panel: to give a teacher who lost their code their class back. */

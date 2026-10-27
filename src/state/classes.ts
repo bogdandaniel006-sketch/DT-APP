@@ -1,7 +1,9 @@
 import { decodeProject, encodeProject } from '../utils/project'
 import { newId } from '../utils/id'
 import type { Shape } from '../types'
+import { appStore } from './appStore'
 import { createStore } from './createStore'
+import { documentStore } from './documentStore'
 
 /**
  * Classes, without accounts (see worker/clases.js). The codes of the classes one belongs to are
@@ -100,11 +102,15 @@ export const showCode = (code: string) => code.match(code.length > 8 ? /.{1,4}/g
 
 export class ClassError extends Error {}
 
-const request = async (path: string, init: RequestInit & { code?: string } = {}): Promise<Response> => {
-  const { code, ...rest } = init
+const request = async (path: string, init: RequestInit & { code?: string; key?: string } = {}): Promise<Response> => {
+  const { code, key, ...rest } = init
   let reply: Response
   try {
-    reply = await fetch(`/clases/${path}`, { method: 'POST', ...rest, headers: { ...(code ? { 'X-Codigo': code } : {}), ...(rest.headers ?? {}) } })
+    reply = await fetch(`/clases/${path}`, {
+      method: 'POST',
+      ...rest,
+      headers: { ...(code ? { 'X-Codigo': code } : {}), ...(key ? { 'X-Clave': key } : {}), ...(rest.headers ?? {}) },
+    })
   } catch {
     throw new ClassError('No hay conexión. Comprueba internet y vuelve a probar.')
   }
@@ -121,6 +127,7 @@ export const createClass = async (name: string): Promise<TeacherClass> => {
   const made = await json<{ nombre: string; profesor: string }>(await request('crear', { body: JSON.stringify({ nombre: name }) }))
   const room = { code: made.profesor, name: made.nombre }
   remember({ teacher: [room, ...classStore.get().teacher.filter((c) => c.code !== room.code)] })
+  markSeen(room.code, [])
   return room
 }
 
@@ -139,6 +146,8 @@ export const joinClass = async (code: string, pupil: string): Promise<PupilClass
   const previous = classStore.get().pupil.find((c) => c.code === view.alumnos)
   const room = { code: view.alumnos, name: view.nombre, pupil, key: previous?.key ?? newId() }
   remember({ pupil: [room, ...classStore.get().pupil.filter((c) => c.code !== room.code)] })
+  // What was there before joining is not news; the panel still shows it.
+  if (!seenIn(room.code)) markSeen(room.code, view.ejercicios.map((x) => x.id))
   return room
 }
 
@@ -197,3 +206,103 @@ export const when = (ms: number) =>
 
 /** Tag of the tabs holding a sheet a pupil sent (see openPdf), followed by its id. */
 export const SENT_TAG = 'entrega-'
+
+/** A sheet this pupil sent. */
+export interface MySheet {
+  id: string
+  titulo: string
+  ejercicio: string | null
+  bytes: number
+  fecha: number
+}
+
+export const mySent = async (room: PupilClass) => (await json<{ entregas: MySheet[] }>(await request('mias', { code: room.code, key: room.key }))).entregas
+
+/** One of the pupil's own sheets, as they sent it, to look at it again or change it. */
+export const mySheet = async (room: PupilClass, id: string) => {
+  const project = decodeProject(new Uint8Array(await (await request(`mia/${id}`, { code: room.code, key: room.key })).arrayBuffer()))
+  if (!project) throw new ClassError('La lámina está dañada.')
+  return project
+}
+
+export const deleteMine = (room: PupilClass, id: string) => request(`borrar-mia/${id}`, { code: room.code, key: room.key })
+
+/*
+ * What is new in each class: exercises a pupil has not seen yet, sheets a teacher has not looked
+ * at. What was seen is kept per class in this browser; a class seen for the first time starts with
+ * everything in it seen, so joining does not bring a pile of news.
+ */
+const SEEN_KEY = 'lamina:clases-visto'
+
+const loadSeen = (): Record<string, string[]> => {
+  try {
+    return (JSON.parse(localStorage.getItem(SEEN_KEY) ?? '{}') as Record<string, string[]>) ?? {}
+  } catch {
+    return {}
+  }
+}
+
+export const seenIn = (code: string): ReadonlySet<string> | null => {
+  const ids = loadSeen()[code]
+  return ids ? new Set(ids) : null
+}
+
+export const markSeen = (code: string, ids: readonly string[]) => {
+  const seen = loadSeen()
+  seen[code] = [...new Set([...(seen[code] ?? []), ...ids])].slice(-500)
+  try {
+    localStorage.setItem(SEEN_KEY, JSON.stringify(seen))
+  } catch {
+    /* storage unavailable: news come back next visit */
+  }
+  newsStore.set({ news: newsStore.get().news.filter((n) => !(n.code === code && ids.includes(n.id))) })
+}
+
+export interface News {
+  /** The exercise or the sent sheet it is about. */
+  id: string
+  code: string
+  className: string
+  role: 'teacher' | 'pupil'
+  title: string
+  /** Who sent it, for a teacher. */
+  pupil?: string
+}
+
+export const newsStore = createStore<{ news: News[] }>({ news: [] })
+
+/** Asks each class kept here what is new. Quiet when offline or when a class is gone. */
+export const checkNews = async () => {
+  const news: News[] = []
+  const { teacher, pupil } = classStore.get()
+  for (const room of pupil) {
+    try {
+      const view = await request('alumno', { code: room.code }).then((r) => json<PupilView>(r))
+      const seen = seenIn(room.code)
+      if (!seen) markSeen(room.code, view.ejercicios.map((x) => x.id))
+      else for (const x of view.ejercicios) if (!seen.has(x.id)) news.push({ id: x.id, code: room.code, className: view.nombre, role: 'pupil', title: x.titulo })
+    } catch {
+      /* next time */
+    }
+  }
+  for (const room of teacher) {
+    try {
+      const view = await request('profesor', { code: room.code }).then((r) => json<TeacherView>(r))
+      const seen = seenIn(room.code)
+      if (!seen) markSeen(room.code, view.entregas.map((x) => x.id))
+      else for (const x of view.entregas) if (!seen.has(x.id)) news.push({ id: x.id, code: room.code, className: view.nombre, role: 'teacher', title: x.titulo, pupil: x.alumno })
+    } catch {
+      /* next time */
+    }
+  }
+  newsStore.set({ news })
+}
+
+/** Per tab, the strokes as last sent from it (or as it was opened): changes since are unsent. */
+export const sentBaseline = new Map<string, unknown>()
+
+/** The sheet on the desk has just been sent: its strokes, as they are, are the sent ones. */
+export const markSentNow = () => {
+  const { activeTab } = appStore.get()
+  if (activeTab) sentBaseline.set(activeTab, documentStore.get().shapes)
+}

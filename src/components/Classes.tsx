@@ -3,11 +3,19 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { imagePdf } from '../pdf/make'
 import { getSession } from '../pdf/session'
-import { goToStart, loadPdf } from '../state/actions'
+import { activateTab, goToStart, loadPdf, noteTabSent } from '../state/actions'
 import { appStore } from '../state/appStore'
 import {
   SENT_TAG,
   addLibraryExercise,
+  deleteMine,
+  markSeen,
+  markSentNow,
+  newsStore,
+  mySent,
+  mySheet,
+  seenIn,
+  type MySheet,
   classStore,
   cleanCode,
   createClass,
@@ -47,7 +55,7 @@ type Screen =
   | { kind: 'pupil'; room: PupilClass }
 
 /** The classes window: closed, or open on a screen. */
-const panelStore = createStore<{ screen: Screen | null }>({ screen: null })
+export const panelStore = createStore<{ screen: Screen | null }>({ screen: null })
 export const openPanel = (screen: Screen = { kind: 'home' }) => panelStore.set({ screen })
 const closePanel = () => panelStore.set({ screen: null })
 
@@ -285,11 +293,16 @@ const Teacher = ({ code, fresh, go, close }: { code: string; fresh?: boolean; go
   const [view, setView] = useState<TeacherView | null>(null)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
+  const [arrived, setArrived] = useState<ReadonlySet<string>>(new Set())
 
   const reload = async () => {
     setError('')
     try {
-      setView(await teacherView(code))
+      const next = await teacherView(code)
+      setView(next)
+      const seen = seenIn(code)
+      if (seen) setArrived((was) => new Set([...was, ...next.entregas.filter((s) => !seen.has(s.id)).map((s) => s.id)]))
+      markSeen(code, next.entregas.map((s) => s.id))
     } catch (err) {
       setError(message(err))
     }
@@ -461,8 +474,11 @@ const Teacher = ({ code, fresh, go, close }: { code: string; fresh?: boolean; go
           {view.entregas.map((s) => (
             <li key={s.id} className="flex items-center gap-2 border-b border-black/[0.05] py-1.5 last:border-0">
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-[13.5px] text-ink">
-                  <b className="font-semibold">{s.alumno}</b> · {s.titulo}
+                <span className="flex items-center gap-1.5 text-[13.5px] text-ink">
+                  <span className="truncate">
+                    <b className="font-semibold">{s.alumno}</b> · {s.titulo}
+                  </span>
+                  {arrived.has(s.id) && <span className="shrink-0 rounded-full bg-accent px-1.5 py-px text-[10.5px] font-semibold text-white">Nueva</span>}
                 </span>
                 <span className="text-[11.5px] text-muted">
                   {when(s.fecha)}
@@ -530,28 +546,68 @@ const Teacher = ({ code, fresh, go, close }: { code: string; fresh?: boolean; go
   )
 }
 
-/** A pupil's class: the exercises to do, and how to send one. */
+/** Opens one of the pupil's own sent sheets to look at it or change it: their own copy if it is open here. */
+const openMine = async (room: PupilClass, sheet: MySheet) => {
+  const { tabs } = appStore.get()
+  const open = sheet.ejercicio ? tabs.find((t) => t.exercise?.id === sheet.ejercicio && t.exercise.code === room.code) : undefined
+  if (open) return activateTab(open.id)
+  const project = await mySheet(room, sheet.id)
+  await loadPdf(project.bytes, `${sheet.titulo}.pdf`, {
+    drawing: project,
+    ...(sheet.ejercicio
+      ? { exercise: { code: room.code, id: sheet.ejercicio, title: sheet.titulo, bytes: project.bytes.length } }
+      : { tag: 'enviada-' + sheet.id }),
+  })
+}
+
+/** A pupil's class: the exercises to do, whether each was sent, and everything sent. */
 const Pupil = ({ room, go, close }: { room: PupilClass; go: (s: Screen) => void; close: () => void }) => {
   const [view, setView] = useState<PupilView | null>(null)
+  const [mine, setMine] = useState<MySheet[]>([])
   const [error, setError] = useState('')
-  const [opening, setOpening] = useState<string | null>(null)
+  const [busy, setBusy] = useState<string | null>(null)
+  const [fresh, setFresh] = useState<ReadonlySet<string>>(new Set())
 
-  useEffect(() => {
-    pupilView(room.code).then(setView, (err: unknown) => setError(message(err)))
-  }, [room.code])
-
-  const open = async (id: string, title: string) => {
-    setOpening(id)
-    setError('')
+  const reload = async () => {
     try {
-      const bytes = await exercisePdf(room.code, id)
-      await loadPdf(bytes, `${title}.pdf`, { kind: 'pdf', exercise: { code: room.code, id, title, bytes: bytes.length } })
-      close()
+      const [v, m] = await Promise.all([pupilView(room.code), mySent(room)])
+      setView(v)
+      setMine(m)
+      // What was new is marked as such once, then counts as seen.
+      const seen = seenIn(room.code)
+      if (seen) setFresh((was) => new Set([...was, ...v.ejercicios.filter((x) => !seen.has(x.id)).map((x) => x.id)]))
+      markSeen(room.code, v.ejercicios.map((x) => x.id))
     } catch (err) {
       setError(message(err))
-      setOpening(null)
     }
   }
+  useEffect(() => {
+    void reload()
+  }, [room.code])
+
+  const run = async (what: string, job: () => Promise<unknown>, closing = true) => {
+    setBusy(what)
+    setError('')
+    try {
+      await job()
+      if (closing) close()
+    } catch (err) {
+      setError(message(err))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const open = (id: string, title: string) =>
+    run('abrir' + id, async () => {
+      // The pupil's own copy, if it is open here, is the one with their work.
+      const here = appStore.get().tabs.find((t) => t.exercise?.id === id && t.exercise.code === room.code)
+      if (here) return activateTab(here.id)
+      const bytes = await exercisePdf(room.code, id)
+      await loadPdf(bytes, `${title}.pdf`, { kind: 'pdf', exercise: { code: room.code, id, title, bytes: bytes.length } })
+    })
+
+  const sentOn = (id: string) => mine.find((m) => m.ejercicio === id)
 
   return (
     <>
@@ -565,27 +621,81 @@ const Pupil = ({ room, go, close }: { room: PupilClass; go: (s: Screen) => void;
         <p className="text-[12.5px] text-muted">Tu profe todavía no ha subido ningún ejercicio.</p>
       ) : (
         <ul className="flex flex-col">
-          {view.ejercicios.map((x) => (
-            <li key={x.id} className="flex items-center gap-2 border-b border-black/[0.05] py-1.5 last:border-0">
+          {view.ejercicios.map((x) => {
+            const sent = sentOn(x.id)
+            return (
+              <li key={x.id} className="flex items-center gap-2 border-b border-black/[0.05] py-1.5 last:border-0">
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center gap-1.5 text-[13.5px] font-medium text-ink">
+                    <span className="truncate">{x.titulo}</span>
+                    {fresh.has(x.id) && <span className="shrink-0 rounded-full bg-accent px-1.5 py-px text-[10.5px] font-semibold text-white">Nuevo</span>}
+                  </span>
+                  <span className="text-[11.5px] text-muted">
+                    {sent ? (
+                      <span className="font-medium text-emerald-600 dark:text-emerald-400">
+                        <Check size={12} className="-mt-px mr-0.5 inline" />
+                        Enviado {when(sent.fecha)}
+                      </span>
+                    ) : (
+                      <>Subido {when(x.fecha)} · sin enviar</>
+                    )}
+                  </span>
+                </span>
+                <button type="button" className={SOFT} onClick={() => void open(x.id, x.titulo)} disabled={busy !== null}>
+                  {busy === 'abrir' + x.id ? 'Abriendo…' : sent ? 'Abrir' : 'Hacerlo'}
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+
+      <SectionTitle>Lo que has enviado · {mine.length}</SectionTitle>
+      {mine.length === 0 ? (
+        <p className="text-[12.5px] text-muted">
+          Todavía no has enviado nada. Cuando abras un ejercicio de tu profe, arriba a la derecha tendrás el botón <b>Enviar al profe</b>. Cualquier
+          otra lámina se envía desde el botón de guardar (la flecha hacia abajo).
+        </p>
+      ) : (
+        <ul className="flex flex-col">
+          {mine.map((m) => (
+            <li key={m.id} className="flex items-center gap-2 border-b border-black/[0.05] py-1.5 last:border-0">
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-[13.5px] font-medium text-ink">{x.titulo}</span>
-                <span className="text-[11.5px] text-muted">{when(x.fecha)}</span>
+                <span className="block truncate text-[13.5px] text-ink">{m.titulo}</span>
+                <span className="text-[11.5px] text-muted">
+                  Enviada {when(m.fecha)}
+                  {m.ejercicio ? ' · ejercicio de la clase' : ''}
+                </span>
               </span>
-              <button type="button" className={SOFT} onClick={() => void open(x.id, x.titulo)} disabled={opening !== null}>
-                {opening === x.id ? 'Abriendo…' : 'Hacerlo'}
+              <button type="button" className={SOFT} onClick={() => void run('mia' + m.id, () => openMine(room, m))} disabled={busy !== null}>
+                {busy === 'mia' + m.id ? 'Abriendo…' : 'Abrir y cambiar'}
               </button>
+              <IconButton
+                label="Borrar lo enviado"
+                onClick={() => {
+                  if (!window.confirm(`¿Borrar «${m.titulo}» de lo que has enviado? Tu profe ya no la verá.`)) return
+                  void run(
+                    'borrar' + m.id,
+                    async () => {
+                      await deleteMine(room, m.id)
+                      await reload()
+                    },
+                    false,
+                  )
+                }}
+              >
+                <Trash2 size={15} />
+              </IconButton>
             </li>
           ))}
         </ul>
       )}
+      {mine.length > 0 && (
+        <p className="mt-2 text-[11.5px] leading-snug text-muted">
+          Para cambiar una lámina, ábrela, haz los cambios y vuelve a enviarla: tu profe verá la nueva en lugar de la anterior.
+        </p>
+      )}
       <Problem>{error}</Problem>
-      <p className="mt-4 flex items-start gap-2 rounded-xl bg-accent-soft px-3 py-2.5 text-[12.5px] leading-snug text-ink/80">
-        <Send size={15} className="mt-px shrink-0 text-accent" />
-        <span>
-          Lo que dibujas se queda en tu navegador. Si quieres que tu profe vea una lámina (de la clase o cualquier otra), en la mesa pulsa el botón
-          de <b>guardar</b> (la flecha hacia abajo) y luego <b>Enviar al profesor</b>.
-        </span>
-      </p>
       <div className="mt-5 flex justify-end border-t border-black/[0.06] pt-3">
         <button
           type="button"
@@ -681,6 +791,14 @@ export const ClassesPanel = () => {
 export const ClassesCard = () => {
   const teacher = useStore(classStore, (s) => s.teacher)
   const pupil = useStore(classStore, (s) => s.pupil)
+  const news = useStore(newsStore, (s) => s.news)
+  const newIn = (code: string) => news.filter((n) => n.code === code).length
+  const badge = (code: string) =>
+    newIn(code) > 0 && (
+      <span className="grid h-5 min-w-5 place-items-center rounded-full bg-accent px-1.5 text-[11px] font-semibold text-white" title="Novedades">
+        {newIn(code)}
+      </span>
+    )
   const mine = teacher.length + pupil.length > 0
   return (
     <aside aria-label="Clases" className="float animate-pop w-full max-w-[380px] rounded-3xl p-6 text-left">
@@ -709,6 +827,7 @@ export const ClassesCard = () => {
               >
                 <GraduationCap size={16} className="shrink-0 text-accent" />
                 <span className="flex-1 truncate font-medium">{c.name}</span>
+                {badge(c.code)}
                 <span className="text-[11px] font-medium text-accent">Profesor</span>
               </button>
             ))}
@@ -721,6 +840,7 @@ export const ClassesCard = () => {
               >
                 <UserRound size={16} className="shrink-0 text-accent" />
                 <span className="flex-1 truncate font-medium">{c.name}</span>
+                {badge(c.code)}
                 <span className="text-[11px] text-muted">{c.pupil}</span>
               </button>
             ))}
@@ -845,6 +965,8 @@ export const SendToTeacher = ({ onClose }: { onClose: () => void }) => {
     try {
       const sheet = { name: session.name, bytes: session.bytes, shapes: [...documentStore.get().shapes], page: appStore.get().page }
       const { replaced } = await sendSheet(room, title.trim() || 'Lámina', sheet, tab?.exercise)
+      noteTabSent()
+      markSentNow()
       setDone(replaced ? 'Enviada de nuevo: tu profe verá esta versión en lugar de la anterior.' : 'Enviada. Tu profe ya puede verla.')
     } catch (err) {
       setError(message(err))
