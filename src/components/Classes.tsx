@@ -1,4 +1,4 @@
-import { ArrowLeft, BookOpen, Check, Copy, FileUp, GraduationCap, RotateCw, Send, Trash2, UserRound, Users, X } from 'lucide-react'
+import { ArrowLeft, BookOpen, Check, ChevronDown, Copy, FileUp, GraduationCap, RotateCw, Send, Trash2, UserRound, Users, X } from 'lucide-react'
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { imagePdf } from '../pdf/make'
@@ -356,8 +356,7 @@ const Teacher = ({ code, fresh, go, close }: { code: string; fresh?: boolean; go
 
   const openSent = (sheet: SentSheet) =>
     run('abrir' + sheet.id, async () => {
-      const project = await sentSheet(code, sheet.id)
-      await loadPdf(project.bytes, `${sheet.alumno} · ${sheet.titulo}.pdf`, { drawing: project, tag: SENT_TAG + sheet.id })
+      await openSentSheet(code, sheet)
       close()
     })
 
@@ -599,13 +598,7 @@ const Pupil = ({ room, go, close }: { room: PupilClass; go: (s: Screen) => void;
   }
 
   const open = (id: string, title: string) =>
-    run('abrir' + id, async () => {
-      // The pupil's own copy, if it is open here, is the one with their work.
-      const here = appStore.get().tabs.find((t) => t.exercise?.id === id && t.exercise.code === room.code)
-      if (here) return activateTab(here.id)
-      const bytes = await exercisePdf(room.code, id)
-      await loadPdf(bytes, `${title}.pdf`, { kind: 'pdf', exercise: { code: room.code, id, title, bytes: bytes.length } })
-    })
+    run('abrir' + id, () => openPupilExercise(room, id, title))
 
   const sentOn = (id: string) => mine.find((m) => m.ejercicio === id)
 
@@ -787,90 +780,286 @@ export const ClassesPanel = () => {
   )
 }
 
-/** The classes on the start screen, large, beside the desk: the way in for teachers and pupils. */
+/** A sheet a pupil sent, opened by the teacher on the desk, apart from any copy of its PDF. */
+const openSentSheet = async (code: string, sheet: SentSheet) => {
+  const project = await sentSheet(code, sheet.id)
+  await loadPdf(project.bytes, `${sheet.alumno} · ${sheet.titulo}.pdf`, { drawing: project, tag: SENT_TAG + sheet.id })
+}
+
+/** An exercise of a pupil's class on the desk: their own copy if it is open here, the one with their work. */
+const openPupilExercise = async (room: PupilClass, id: string, title: string) => {
+  const here = appStore.get().tabs.find((t) => t.exercise?.id === id && t.exercise.code === room.code)
+  if (here) return activateTab(here.id)
+  const bytes = await exercisePdf(room.code, id)
+  await loadPdf(bytes, `${title}.pdf`, { kind: 'pdf', exercise: { code: room.code, id, title, bytes: bytes.length } })
+}
+
+const CURRENT_KEY = 'lamina:clase-actual'
+const readCurrent = () => {
+  try {
+    return localStorage.getItem(CURRENT_KEY)
+  } catch {
+    return null
+  }
+}
+
+const NewBadge = ({ children }: { children: string }) => (
+  <span className="shrink-0 rounded-full bg-accent px-1.5 py-px text-[10.5px] font-semibold text-white">{children}</span>
+)
+
+const Stat = ({ value, label }: { value: ReactNode; label: string }) => (
+  <div className="flex-1 rounded-xl bg-black/[0.03] px-3 py-2">
+    <b className="block text-[20px] font-semibold leading-tight tracking-[-0.02em] text-ink">{value}</b>
+    <span className="text-[11.5px] text-muted">{label}</span>
+  </div>
+)
+
+/** The teacher's class at a glance: the pupils' code, what came in, the latest sheets. */
+const TeacherSummary = ({ code }: { code: string }) => {
+  const [view, setView] = useState<TeacherView | null>(null)
+  const [error, setError] = useState('')
+  const [opening, setOpening] = useState<string | null>(null)
+  const news = useStore(newsStore, (s) => s.news)
+  // Back from the class window, what changed there shows here.
+  const panelOpen = useStore(panelStore, (s) => s.screen !== null)
+  const fresh = new Set(news.filter((n) => n.code === code).map((n) => n.id))
+
+  useEffect(() => {
+    teacherView(code).then(setView, (err: unknown) => setError(message(err)))
+  }, [code, news.length, panelOpen])
+
+  if (!view) return error ? <Problem>{error}</Problem> : <p className="text-[13px] text-muted">Abriendo la clase…</p>
+  const pupils = new Set(view.entregas.map((s) => s.clave)).size
+
+  return (
+    <>
+      <CodeBox label="Código para los alumnos" code={view.alumnos} note="Dáselo a tus alumnos para que se unan." />
+      <div className="mt-2 flex gap-2">
+        <Stat value={view.ejercicios.length} label={view.ejercicios.length === 1 ? 'ejercicio' : 'ejercicios'} />
+        <Stat value={view.entregas.length} label={view.entregas.length === 1 ? 'lámina recibida' : 'láminas recibidas'} />
+        <Stat value={pupils} label={pupils === 1 ? 'alumno ha enviado' : 'alumnos han enviado'} />
+      </div>
+      <p className="mb-1 mt-4 text-[11px] font-medium uppercase tracking-wider text-faint">Últimas láminas recibidas</p>
+      {view.entregas.length === 0 ? (
+        <p className="text-[12.5px] text-muted">Todavía no te han enviado ninguna.</p>
+      ) : (
+        <ul className="flex flex-col">
+          {view.entregas.slice(0, 4).map((s) => (
+            <li key={s.id} className="flex items-center gap-2 border-b border-black/[0.05] py-1.5 last:border-0">
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center gap-1.5 text-[13px] text-ink">
+                  <span className="truncate">
+                    <b className="font-semibold">{s.alumno}</b> · {s.titulo}
+                  </span>
+                  {fresh.has(s.id) && <NewBadge>Nueva</NewBadge>}
+                </span>
+                <span className="text-[11.5px] text-muted">{when(s.fecha)}</span>
+              </span>
+              <button
+                type="button"
+                className={SOFT}
+                disabled={opening !== null}
+                onClick={() => {
+                  setOpening(s.id)
+                  openSentSheet(code, s).catch((err: unknown) => {
+                    setError(message(err))
+                    setOpening(null)
+                  })
+                }}
+              >
+                {opening === s.id ? 'Abriendo…' : 'Abrir'}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <Problem>{error}</Problem>
+      <button type="button" onClick={() => openPanel({ kind: 'teacher', code })} className={`${PRIMARY} mt-4 w-full`}>
+        <GraduationCap size={16} />
+        Abrir la clase: ejercicios y láminas
+      </button>
+    </>
+  )
+}
+
+/** The pupil's class at a glance: what is left to do, and what was sent. */
+const PupilSummary = ({ room }: { room: PupilClass }) => {
+  const [view, setView] = useState<PupilView | null>(null)
+  const [mine, setMine] = useState<MySheet[]>([])
+  const [error, setError] = useState('')
+  const [opening, setOpening] = useState<string | null>(null)
+  const news = useStore(newsStore, (s) => s.news)
+  // Back from the class window, what changed there shows here.
+  const panelOpen = useStore(panelStore, (s) => s.screen !== null)
+  const fresh = new Set(news.filter((n) => n.code === room.code).map((n) => n.id))
+
+  useEffect(() => {
+    Promise.all([pupilView(room.code), mySent(room)]).then(
+      ([v, m]) => {
+        setView(v)
+        setMine(m)
+      },
+      (err: unknown) => setError(message(err)),
+    )
+  }, [room.code, news.length, panelOpen])
+
+  if (!view) return error ? <Problem>{error}</Problem> : <p className="text-[13px] text-muted">Abriendo la clase…</p>
+  const sent = new Set(mine.map((m) => m.ejercicio))
+  const todo = view.ejercicios.filter((x) => !sent.has(x.id))
+
+  return (
+    <>
+      <p className="text-[13px] text-muted">
+        Estás como <b className="font-semibold text-ink">{room.pupil}</b>
+      </p>
+      <div className="mt-3 flex gap-2">
+        <Stat value={todo.length} label="por enviar" />
+        <Stat value={mine.length} label={mine.length === 1 ? 'lámina enviada' : 'láminas enviadas'} />
+      </div>
+      <p className="mb-1 mt-4 text-[11px] font-medium uppercase tracking-wider text-faint">Por hacer</p>
+      {view.ejercicios.length === 0 ? (
+        <p className="text-[12.5px] text-muted">Tu profe todavía no ha subido ningún ejercicio.</p>
+      ) : todo.length === 0 ? (
+        <p className="flex items-center gap-1.5 text-[12.5px] font-medium text-emerald-600 dark:text-emerald-400">
+          <Check size={14} />
+          Lo tienes todo enviado
+        </p>
+      ) : (
+        <ul className="flex flex-col">
+          {todo.slice(0, 4).map((x) => (
+            <li key={x.id} className="flex items-center gap-2 border-b border-black/[0.05] py-1.5 last:border-0">
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center gap-1.5 text-[13px] font-medium text-ink">
+                  <span className="truncate">{x.titulo}</span>
+                  {fresh.has(x.id) && <NewBadge>Nuevo</NewBadge>}
+                </span>
+                <span className="text-[11.5px] text-muted">Subido {when(x.fecha)}</span>
+              </span>
+              <button
+                type="button"
+                className={SOFT}
+                disabled={opening !== null}
+                onClick={() => {
+                  setOpening(x.id)
+                  openPupilExercise(room, x.id, x.titulo).catch((err: unknown) => {
+                    setError(message(err))
+                    setOpening(null)
+                  })
+                }}
+              >
+                {opening === x.id ? 'Abriendo…' : 'Hacerlo'}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <Problem>{error}</Problem>
+      <button type="button" onClick={() => openPanel({ kind: 'pupil', room })} className={`${PRIMARY} mt-4 w-full`}>
+        <Users size={16} />
+        Abrir la clase: ejercicios y lo enviado
+      </button>
+    </>
+  )
+}
+
+/**
+ * The classes on the start screen. In a class: that class, large, beside the desk, with what
+ * matters in it; the other classes and the ways into new ones wait behind "Otras clases".
+ * In none: a small button in a corner, there to be found but not in the way.
+ */
 export const ClassesCard = () => {
   const teacher = useStore(classStore, (s) => s.teacher)
   const pupil = useStore(classStore, (s) => s.pupil)
   const news = useStore(newsStore, (s) => s.news)
+  const [chosen, setChosen] = useState(readCurrent)
+  const [more, setMore] = useState(false)
+
+  const all = [...teacher.map((c) => ({ code: c.code, name: c.name, role: 'teacher' as const })), ...pupil.map((c) => ({ code: c.code, name: c.name, role: 'pupil' as const }))]
+  if (!all.length) return <ClassesCorner />
+  const current = all.find((c) => c.code === chosen) ?? all[0]!
+  const room = pupil.find((c) => c.code === current.code)
+  const others = all.filter((c) => c.code !== current.code)
   const newIn = (code: string) => news.filter((n) => n.code === code).length
-  const badge = (code: string) =>
-    newIn(code) > 0 && (
-      <span className="grid h-5 min-w-5 place-items-center rounded-full bg-accent px-1.5 text-[11px] font-semibold text-white" title="Novedades">
-        {newIn(code)}
-      </span>
-    )
-  const mine = teacher.length + pupil.length > 0
+  const choose = (code: string) => {
+    setChosen(code)
+    setMore(false)
+    try {
+      localStorage.setItem(CURRENT_KEY, code)
+    } catch {
+      /* chosen until the page is closed */
+    }
+  }
+
   return (
-    <aside aria-label="Clases" className="float animate-pop w-full max-w-[380px] rounded-3xl p-6 text-left">
+    <aside aria-label="Tu clase" className="float animate-pop w-full max-w-[400px] rounded-3xl p-5 text-left sm:p-6">
       <div className="flex items-center gap-3">
-        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-accent-soft text-accent">
-          <GraduationCap size={24} />
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-accent-soft text-accent">
+          {current.role === 'teacher' ? <GraduationCap size={22} /> : <UserRound size={22} />}
         </span>
-        <div>
-          <h2 className="text-[22px] font-semibold tracking-[-0.02em] text-ink">Clases</h2>
-          <p className="text-[12.5px] text-muted">Para profes y alumnos · sin cuentas</p>
+        <div className="min-w-0 flex-1">
+          <p className="text-[11px] font-medium uppercase tracking-wider text-faint">{current.role === 'teacher' ? 'Tu clase · profesor' : 'Tu clase · alumno'}</p>
+          <h2 className="truncate text-[20px] font-semibold tracking-[-0.02em] text-ink">{current.name}</h2>
         </div>
       </div>
-      <p className="mt-4 text-[13.5px] leading-relaxed text-ink/80">
-        El profe sube las láminas y reparte un código. Los alumnos las hacen desde casa, aquí mismo, y si quieren se las envían para que las vea.
-      </p>
-      {mine && (
-        <div className="mt-4">
-          <p className="mb-1 text-[11px] font-medium uppercase tracking-wider text-faint">Tus clases</p>
-          <div className="flex flex-col gap-1">
-            {teacher.map((c) => (
+      <div className="mt-4">{current.role === 'teacher' ? <TeacherSummary key={current.code} code={current.code} /> : room && <PupilSummary key={room.code} room={room} />}</div>
+
+      <div className="mt-4 border-t border-black/[0.06] pt-3">
+        <button
+          type="button"
+          onClick={() => setMore((m) => !m)}
+          aria-expanded={more}
+          className="flex w-full items-center gap-1.5 rounded-lg px-1 py-1 text-[12.5px] font-medium text-muted outline-none transition-colors hover:text-ink focus-visible:ring-2 focus-visible:ring-accent/40"
+        >
+          <span className="flex-1 text-left">Otras clases</span>
+          {others.some((c) => newIn(c.code) > 0) && <span className="h-2 w-2 rounded-full bg-accent" title="Hay novedades en otras clases" />}
+          <ChevronDown size={15} className={`transition-transform ${more ? 'rotate-180' : ''}`} />
+        </button>
+        {more && (
+          <div className="animate-pop mt-1 flex flex-col gap-1">
+            {others.map((c) => (
               <button
                 key={c.code}
                 type="button"
-                onClick={() => openPanel({ kind: 'teacher', code: c.code })}
-                className="flex items-center gap-2.5 rounded-xl bg-black/[0.03] px-3 py-2.5 text-left text-[13.5px] text-ink outline-none transition-colors hover:bg-accent-soft focus-visible:ring-2 focus-visible:ring-accent/40"
+                onClick={() => choose(c.code)}
+                className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-left text-[13px] text-ink outline-none transition-colors hover:bg-accent-soft focus-visible:ring-2 focus-visible:ring-accent/40"
               >
-                <GraduationCap size={16} className="shrink-0 text-accent" />
-                <span className="flex-1 truncate font-medium">{c.name}</span>
-                {badge(c.code)}
-                <span className="text-[11px] font-medium text-accent">Profesor</span>
+                {c.role === 'teacher' ? <GraduationCap size={15} className="shrink-0 text-accent" /> : <UserRound size={15} className="shrink-0 text-accent" />}
+                <span className="flex-1 truncate">{c.name}</span>
+                {newIn(c.code) > 0 && <NewBadge>{String(newIn(c.code))}</NewBadge>}
+                <span className="text-[11px] text-muted">{c.role === 'teacher' ? 'Profesor' : 'Alumno'}</span>
               </button>
             ))}
-            {pupil.map((c) => (
-              <button
-                key={c.code}
-                type="button"
-                onClick={() => openPanel({ kind: 'pupil', room: c })}
-                className="flex items-center gap-2.5 rounded-xl bg-black/[0.03] px-3 py-2.5 text-left text-[13.5px] text-ink outline-none transition-colors hover:bg-accent-soft focus-visible:ring-2 focus-visible:ring-accent/40"
-              >
-                <UserRound size={16} className="shrink-0 text-accent" />
-                <span className="flex-1 truncate font-medium">{c.name}</span>
-                {badge(c.code)}
-                <span className="text-[11px] text-muted">{c.pupil}</span>
+            <div className="mt-1 grid gap-1 sm:grid-cols-2">
+              <button type="button" onClick={() => openPanel({ kind: 'create' })} className={`${SOFT} justify-center`}>
+                <GraduationCap size={14} />
+                Crear una clase
               </button>
-            ))}
+              <button type="button" onClick={() => openPanel({ kind: 'join' })} className={`${SOFT} justify-center`}>
+                <Users size={14} />
+                Unirme con un código
+              </button>
+            </div>
+            <button type="button" onClick={() => openPanel({ kind: 'teacher-login' })} className={`${QUIET} justify-center`}>
+              Tengo un código de profesor
+            </button>
           </div>
-        </div>
-      )}
-      <div className="mt-5 flex flex-col gap-2">
-        <button type="button" onClick={() => openPanel({ kind: 'create' })} className={`${PRIMARY} h-11 text-[14px]`}>
-          <GraduationCap size={17} />
-          Crear una clase · soy profe
-        </button>
-        <button
-          type="button"
-          onClick={() => openPanel({ kind: 'join' })}
-          className="flex h-11 items-center justify-center gap-2 rounded-xl bg-accent-soft px-4 text-[14px] font-medium text-accent outline-none transition-colors hover:bg-accent/20 focus-visible:ring-2 focus-visible:ring-accent/40"
-        >
-          <Users size={17} />
-          Unirme con un código · soy alumno
-        </button>
-        <button
-          type="button"
-          onClick={() => openPanel({ kind: 'teacher-login' })}
-          className="mt-1 self-center text-[12.5px] font-medium text-muted underline-offset-2 outline-none hover:text-accent hover:underline focus-visible:underline"
-        >
-          Ya tengo mi código de profesor
-        </button>
+        )}
       </div>
     </aside>
   )
 }
+
+/** For whoever is in no class yet: a small way in, in the corner of the start screen. */
+const ClassesCorner = () => (
+  <button
+    type="button"
+    onClick={() => openPanel()}
+    className="float absolute left-3 top-3 z-10 flex h-9 items-center gap-1.5 rounded-xl px-3 text-[12.5px] font-medium text-ink outline-none transition-colors hover:text-accent focus-visible:ring-2 focus-visible:ring-accent/40"
+  >
+    <GraduationCap size={16} className="text-accent" />
+    Clases
+  </button>
+)
 
 const TIP_KEY = 'lamina:aviso-clases'
 const TIP_EVERY_DAYS = 6
