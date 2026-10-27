@@ -239,25 +239,8 @@ export const clases = async (request, env, path) => {
     if (request.method !== 'POST' || !ID.test(id ?? '')) return failed(400, 'Ejercicio no válido.')
     const exercise = await db.prepare('SELECT * FROM ejercicios_clase WHERE id = ?1 AND clase = ?2').bind(id, room.id).first()
     if (!exercise) return failed(404, 'Ese ejercicio ya no está en la clase.')
-    if (action === 'ejercicio' && exercise.origen) {
-      const pdf = await librarySheet(exercise.origen)
-      return pdf ? new Response(pdf, { headers: { 'Content-Type': 'application/pdf', 'Cache-Control': 'no-store' } }) : failed(502, 'No se ha podido traer la ficha de su web. Prueba en un rato.')
-    }
-    if (action === 'ejercicio') {
-      const pdf = await stream(env, 'clases', exercise.almacen, 'e' + id)
-      return pdf
-        ? new Response(pdf, { headers: { 'Content-Type': 'application/pdf', 'Content-Length': String(exercise.bytes), 'Cache-Control': 'no-store' } })
-        : failed(404, 'No se encuentra el archivo.')
-    }
-    // The sheets sent on it go with it: they were drawn on its PDF.
-    const onIt = (await db.prepare('SELECT id, bytes, almacen FROM entregas_clase WHERE ejercicio = ?1').bind(id).all()).results
-    if (exercise.almacen) await drop(env, 'clases', exercise.almacen, 'e' + id, exercise.bytes)
-    for (const s of onIt) await drop(env, 'clases', s.almacen, 's' + s.id, s.bytes)
-    await db.batch([
-      db.prepare('DELETE FROM entregas_clase WHERE ejercicio = ?1').bind(id),
-      db.prepare('DELETE FROM ejercicios_clase WHERE id = ?1').bind(id),
-      addUsage(db, room.id, -(exercise.bytes + onIt.reduce((n, s) => n + s.bytes, 0))),
-    ])
+    if (action === 'ejercicio') return serveExercise(env, exercise)
+    await dropExercise(env, exercise)
     return answer(200)
   }
 
@@ -305,8 +288,7 @@ export const clases = async (request, env, path) => {
     const sheet = await db.prepare('SELECT * FROM entregas_clase WHERE id = ?1 AND clase = ?2').bind(id, room.id).first()
     if (!sheet) return failed(404, 'Esa lámina ya no está en la clase.')
     if (action === 'borrar-entrega') {
-      await drop(env, 'clases', sheet.almacen, 's' + id, sheet.bytes)
-      await db.batch([db.prepare('DELETE FROM entregas_clase WHERE id = ?1').bind(id), addUsage(db, room.id, -sheet.bytes)])
+      await dropSheet(env, sheet)
       return answer(200)
     }
     return serveSheet(env, sheet)
@@ -334,8 +316,7 @@ export const clases = async (request, env, path) => {
     const sheet = await db.prepare('SELECT * FROM entregas_clase WHERE id = ?1 AND clase = ?2 AND clave = ?3').bind(id, room.id, key).first()
     if (!sheet) return failed(404, 'Esa lámina ya no está en la clase.')
     if (action === 'borrar-mia') {
-      await drop(env, 'clases', sheet.almacen, 's' + id, sheet.bytes)
-      await db.batch([db.prepare('DELETE FROM entregas_clase WHERE id = ?1').bind(id), addUsage(db, room.id, -sheet.bytes)])
+      await dropSheet(env, sheet)
       return answer(200)
     }
     return serveSheet(env, sheet)
@@ -347,6 +328,80 @@ export const clases = async (request, env, path) => {
     return answer(200)
   }
   return failed(404, 'No encontrado.')
+}
+
+/** An exercise's PDF: kept here, or brought from the library it belongs to. */
+const serveExercise = async (env, exercise) => {
+  if (exercise.origen) {
+    const pdf = await librarySheet(exercise.origen)
+    return pdf ? new Response(pdf, { headers: { 'Content-Type': 'application/pdf', 'Cache-Control': 'no-store' } }) : failed(502, 'No se ha podido traer la ficha de su web. Prueba en un rato.')
+  }
+  const pdf = await stream(env, 'clases', exercise.almacen, 'e' + exercise.id)
+  return pdf
+    ? new Response(pdf, { headers: { 'Content-Type': 'application/pdf', 'Content-Length': String(exercise.bytes), 'Cache-Control': 'no-store' } })
+    : failed(404, 'No se encuentra el archivo.')
+}
+
+/** Deletes an exercise; the sheets sent on it go with it, they were drawn on its PDF. */
+const dropExercise = async (env, exercise) => {
+  const db = env.DB
+  const onIt = (await db.prepare('SELECT id, bytes, almacen FROM entregas_clase WHERE ejercicio = ?1').bind(exercise.id).all()).results
+  if (exercise.almacen) await drop(env, 'clases', exercise.almacen, 'e' + exercise.id, exercise.bytes)
+  for (const s of onIt) await drop(env, 'clases', s.almacen, 's' + s.id, s.bytes)
+  await db.batch([
+    db.prepare('DELETE FROM entregas_clase WHERE ejercicio = ?1').bind(exercise.id),
+    db.prepare('DELETE FROM ejercicios_clase WHERE id = ?1').bind(exercise.id),
+    addUsage(db, exercise.clase, -(exercise.bytes + onIt.reduce((n, s) => n + s.bytes, 0))),
+  ])
+}
+
+const dropSheet = async (env, sheet) => {
+  await drop(env, 'clases', sheet.almacen, 's' + sheet.id, sheet.bytes)
+  await env.DB.batch([env.DB.prepare('DELETE FROM entregas_clase WHERE id = ?1').bind(sheet.id), addUsage(env.DB, sheet.clase, -sheet.bytes)])
+}
+
+/*
+ * For the creator's panel (see panel.js): any class, by its number, to look into it and to put
+ * right what a teacher asks for: its name, an exercise, a sheet, or the whole class.
+ */
+export const creator = {
+  async detail(env, id) {
+    const db = env.DB
+    await tables(db)
+    const room = await db.prepare('SELECT * FROM clases WHERE id = ?1').bind(id).first()
+    if (!room) return null
+    const [exercises, sent, list] = await db.batch([
+      db.prepare('SELECT id, titulo, archivo, bytes, fecha, origen FROM ejercicios_clase WHERE clase = ?1 ORDER BY fecha DESC').bind(id),
+      db.prepare('SELECT id, alumno, clave, titulo, ejercicio, bytes, fecha FROM entregas_clase WHERE clase = ?1 ORDER BY fecha DESC').bind(id),
+      db.prepare('SELECT clave, nombre, unido FROM alumnos_clase WHERE clase = ?1').bind(id),
+    ])
+    return { room, exercises: exercises.results, sent: sent.results, list: list.results }
+  },
+  async rename(env, id, name) {
+    const clean = text(name, 80)
+    if (!clean) return false
+    await env.DB.prepare('UPDATE clases SET nombre = ?2 WHERE id = ?1').bind(id, clean).run()
+    return true
+  },
+  remove: (env, id) => dropClass(env, id),
+  async exercise(env, id) {
+    const exercise = await env.DB.prepare('SELECT * FROM ejercicios_clase WHERE id = ?1').bind(id).first()
+    return exercise && serveExercise(env, exercise)
+  },
+  async removeExercise(env, id) {
+    const exercise = await env.DB.prepare('SELECT * FROM ejercicios_clase WHERE id = ?1').bind(id).first()
+    if (exercise) await dropExercise(env, exercise)
+    return exercise?.clase ?? null
+  },
+  async sheet(env, id) {
+    const sheet = await env.DB.prepare('SELECT * FROM entregas_clase WHERE id = ?1').bind(id).first()
+    return sheet && serveSheet(env, sheet)
+  },
+  async removeSheet(env, id) {
+    const sheet = await env.DB.prepare('SELECT * FROM entregas_clase WHERE id = ?1').bind(id).first()
+    if (sheet) await dropSheet(env, sheet)
+    return sheet?.clase ?? null
+  },
 }
 
 /** A sent sheet as the project file the app opens. */

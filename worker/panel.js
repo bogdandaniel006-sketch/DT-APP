@@ -1,7 +1,7 @@
 import { fetchSheet, originalOf } from './ejercicios.js'
 import { addressOf } from './limites.js'
 import { DEVICE, ORIGIN, PRINT, tables } from './registro.js'
-import { allClasses, IDLE_DAYS_CLASSES, showCode } from './clases.js'
+import { allClasses, creator, IDLE_DAYS_CLASSES, showCode } from './clases.js'
 import { allUsage, stream } from './almacen.js'
 
 /**
@@ -14,6 +14,11 @@ import { allUsage, stream } from './almacen.js'
  *   GET  /panelcreador/salir
  *   GET  /panelcreador/archivo/<d>/<f>      the original PDF of a sheet
  *   GET  /panelcreador/proyecto/<d>/<f>     the sheet with its strokes, as a project the app opens
+ *   GET  /panelcreador/clase/<n>            a class: its exercises, pupils and the sheets sent
+ *   POST /panelcreador/clase/<n>/nombre     { nombre }   rename it
+ *   POST /panelcreador/clase/<n>/borrar     delete it, with everything in it
+ *   GET  /panelcreador/clase-ejercicio/<id> an exercise's PDF;  POST …/<id>/borrar deletes it
+ *   GET  /panelcreador/clase-lamina/<id>    a sent sheet as a project the app opens;  POST …/<id>/borrar deletes it
  */
 
 const COOKIE = 'panel'
@@ -70,7 +75,13 @@ a.btn:hover{background:#dbe6fd}code{font-size:12px;color:var(--muted)}
 .login input{width:100%;height:42px;border-radius:12px;border:0;background:#f1f2f4;padding:0 12px;font:inherit;margin:12px 0}
 .login button{width:100%;height:42px;border:0;border-radius:12px;background:var(--accent);color:#fff;font:inherit;font-weight:600;cursor:pointer}
 code.key{font-size:12.5px;color:var(--ink);user-select:all;letter-spacing:.04em;white-space:nowrap}
-.error{color:#dc2626;font-size:13px}.empty{color:var(--muted);padding:8px 0}
+.error{color:#dc2626;font-size:13px}
+td.name a{color:inherit;text-decoration:none}td.name a:hover{color:var(--accent)}
+form.inline{display:inline;margin:0}button.btn{border:0;cursor:pointer;font:inherit;border-radius:8px;padding:3px 9px;background:var(--soft);color:var(--accent);font-size:12.5px;font-weight:500;margin:0 4px 4px 0}
+button.btn.danger,a.btn.danger{background:#fdecec;color:#dc2626}button.btn:hover{filter:brightness(.96)}
+.rename{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.rename input{height:36px;border-radius:10px;border:0;background:#f1f2f4;padding:0 12px;font:inherit;min-width:260px}
+.rename button,.danger-zone button{height:36px;border:0;border-radius:10px;padding:0 14px;font:inherit;font-weight:600;cursor:pointer;background:var(--accent);color:#fff}
+.danger-zone button{background:#dc2626}.group td{background:#fafbfc;font-weight:600}.empty{color:var(--muted);padding:8px 0}
 `
 
 const FAILED = {
@@ -177,8 +188,8 @@ const panelPage = async (env) => {
   const classRows = (await allClasses(db))
     .map(
       (c) =>
-        `<tr><td class="name">${escape(c.nombre)}</td><td><code class="key">${escape(showCode(c.profesor))}</code></td><td><code class="key">${escape(showCode(c.alumnos))}</code></td>
-<td class="num">${c.ejercicios}</td><td class="num">${c.entregas}</td><td class="num">${c.alumnos_enviaron}</td><td class="num">${mb(c.bytes)}</td><td class="muted">${when(c.creada)}</td><td class="muted">${when(c.usada)}</td></tr>`,
+        `<tr><td class="name"><a href="/panelcreador/clase/${c.id}">${escape(c.nombre)}</a></td><td><code class="key">${escape(showCode(c.profesor))}</code></td><td><code class="key">${escape(showCode(c.alumnos))}</code></td>
+<td class="num">${c.ejercicios}</td><td class="num">${c.entregas}</td><td class="num">${c.alumnos_enviaron}</td><td class="num">${mb(c.bytes)}</td><td class="muted">${when(c.creada)}</td><td class="muted">${when(c.usada)}</td><td><a class="btn" href="/panelcreador/clase/${c.id}">Entrar</a></td></tr>`,
     )
     .join('')
 
@@ -193,7 +204,7 @@ const panelPage = async (env) => {
   return html(`<script>try{localStorage.setItem('lamina:creador','1')}catch(e){}</script>
 <main><header><h1>Panel del creador</h1><a href="/">Ir a Lámina</a><a href="/panelcreador/salir">Salir</a></header>
 <div class="cards">${card(t.dispositivos, 'personas que aceptaron')}${card(w.activos, 'activas esta semana')}${card(t.laminas, 'láminas recibidas')}${card(t.aperturas, 'archivos abiertos')}${card(t.exportaciones, 'exportaciones')}${card(w.acciones, 'acciones esta semana')}</div>
-<section><h2>Clases</h2>${table('<th>Clase</th><th>Código de profesor</th><th>Código de alumnos</th><th class="num">Ejercicios</th><th class="num">Láminas enviadas</th><th class="num">Alumnos que enviaron</th><th class="num">Espacio</th><th>Creada</th><th>Último uso</th>', classRows, 'Todavía no se ha creado ninguna clase.')}
+<section><h2>Clases</h2>${table('<th>Clase</th><th>Código de profesor</th><th>Código de alumnos</th><th class="num">Ejercicios</th><th class="num">Láminas enviadas</th><th class="num">Alumnos que enviaron</th><th class="num">Espacio</th><th>Creada</th><th>Último uso</th><th></th>', classRows, 'Todavía no se ha creado ninguna clase.')}
 <p class="muted">Si un profesor pierde su código, está aquí. Las clases que nadie abre en ${IDLE_DAYS_CLASSES} días se borran solas.</p></section>
 <section><h2>Almacenamiento</h2>${table('<th>Base de datos</th><th class="num">Usado</th><th class="num">Capacidad</th><th class="num">Lleno</th>', storeRows, 'Las bases de datos de archivos no están conectadas.')}
 <p class="muted">Los archivos grandes se reparten entre estas bases de datos: cuando una se llena, se usa la siguiente.</p></section>
@@ -201,6 +212,102 @@ const panelPage = async (env) => {
 <section><h2>Ejercicios más abiertos · últimos 30 días</h2>${table('<th>Ficha</th><th class="num">Veces</th><th class="num">Personas</th>', exerciseRows, 'Nadie ha abierto todavía un ejercicio de la biblioteca.')}</section>
 <section><h2>Actividad reciente</h2>${table('<th>Cuándo</th><th>Persona</th><th>Qué</th>', activityRows, 'Sin actividad todavía.')}</section>
 <p class="muted">Cada persona es un dispositivo, identificado por un código al azar. Solo llega lo de quien aceptó enviar sus láminas.</p></main>`)
+}
+
+/** Asks before a form that deletes something is sent. */
+const confirmed = (text) => `onsubmit="return confirm(${escape(JSON.stringify(text))})"`
+
+const classPage = async (env, id) => {
+  const found = await creator.detail(env, id)
+  if (!found) return html('<main><section><p>Esa clase ya no existe.</p><p><a href="/panelcreador">Volver al panel</a></p></section></main>', 404)
+  const { room, exercises, sent, list } = found
+  const mb = (bytes) => `${((bytes ?? 0) / 1048576).toFixed(1).replace('.', ',')} MB`
+  const table = (head, rows, empty) => (rows ? `<table><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>` : `<p class="empty">${empty}</p>`)
+  const byName = (a, b) => String(a).localeCompare(String(b), 'es', { sensitivity: 'base' })
+  const titleOf = new Map(exercises.map((x) => [x.id, x.titulo]))
+
+  const exerciseRows = exercises
+    .map((x) => {
+      const on = sent.filter((s) => s.ejercicio === x.id).length
+      return `<tr><td class="name">${escape(x.titulo)}${x.origen ? ' <span class="tag">Biblioteca</span>' : ''}</td><td class="muted">${when(x.fecha)}</td><td class="num">${on}</td><td class="num">${x.origen ? '—' : mb(x.bytes)}</td>
+<td><a class="btn" href="/panelcreador/clase-ejercicio/${x.id}" target="_blank" rel="noopener">Ver PDF</a><form class="inline" method="post" action="/panelcreador/clase-ejercicio/${x.id}/borrar" ${confirmed(`¿Borrar «${x.titulo}»? También se borran las ${on} láminas enviadas sobre él.`)}><button class="btn danger">Borrar</button></form></td></tr>`
+    })
+    .join('')
+
+  // Everyone on the list, and anyone who sent before there was one, in class-list order.
+  const pupils = [...list.map((p) => ({ clave: p.clave, nombre: p.nombre, unido: p.unido }))]
+  for (const s of sent) if (!pupils.some((p) => p.clave === s.clave)) pupils.push({ clave: s.clave, nombre: s.alumno, unido: s.fecha })
+  pupils.sort((a, b) => byName(a.nombre, b.nombre))
+
+  const pupilRows = pupils
+    .map((p) => {
+      const theirs = sent.filter((s) => s.clave === p.clave)
+      return `<tr><td class="name">${escape(p.nombre)}</td><td class="muted">${when(p.unido)}</td><td class="num">${theirs.length}</td><td class="num">${new Set(theirs.filter((s) => s.ejercicio).map((s) => s.ejercicio)).size} de ${exercises.length}</td></tr>`
+    })
+    .join('')
+
+  const sheetRows = pupils
+    .map((p) => {
+      const theirs = sent.filter((s) => s.clave === p.clave)
+      if (!theirs.length) return ''
+      return (
+        `<tr class="group"><td colspan="5">${escape(p.nombre)} · ${theirs.length} ${theirs.length === 1 ? 'lámina' : 'láminas'}</td></tr>` +
+        theirs
+          .map(
+            (s) => `<tr><td class="name">${escape(s.titulo)}</td><td>${s.ejercicio ? `<span class="tag">${escape(titleOf.get(s.ejercicio) ?? 'Ejercicio')}</span>` : '<span class="muted">Lámina propia</span>'}</td><td class="muted">${when(s.fecha)}</td><td class="num">${mb(s.bytes)}</td>
+<td><a class="btn" href="/?verclase=${s.id}&amp;n=${encodeURIComponent(`${s.alumno} · ${s.titulo}`)}" target="_blank" rel="noopener">Abrir en la mesa</a><form class="inline" method="post" action="/panelcreador/clase-lamina/${s.id}/borrar" ${confirmed(`¿Borrar «${s.titulo}» de ${s.alumno}?`)}><button class="btn danger">Borrar</button></form></td></tr>`,
+          )
+          .join('')
+      )
+    })
+    .join('')
+
+  return html(`<main><header><h1>${escape(room.nombre)}</h1><a href="/panelcreador">Volver al panel</a><a href="/panelcreador/salir">Salir</a></header>
+<div class="cards"><div class="card"><b>${exercises.length}</b><span>ejercicios</span></div><div class="card"><b>${pupils.length}</b><span>alumnos</span></div><div class="card"><b>${sent.length}</b><span>láminas enviadas</span></div><div class="card"><b>${mb(room.bytes)}</b><span>ocupa</span></div></div>
+<section><h2>La clase</h2>
+<p>Código de profesor <code class="key">${escape(showCode(room.profesor))}</code> · código de alumnos <code class="key">${escape(showCode(room.alumnos))}</code></p>
+<p class="muted">Creada el ${when(room.creada)} · último uso ${when(room.usada)}</p>
+<form class="rename" method="post" action="/panelcreador/clase/${room.id}/nombre"><input name="nombre" value="${escape(room.nombre)}" maxlength="80" required aria-label="Nombre de la clase"><button>Cambiar el nombre</button></form></section>
+<section><h2>Ejercicios del profesor</h2>${table('<th>Ejercicio</th><th>Subido</th><th class="num">Enviadas</th><th class="num">Tamaño</th><th></th>', exerciseRows, 'El profesor no ha puesto ejercicios.')}</section>
+<section><h2>Alumnos · por orden de lista</h2>${table('<th>Alumno</th><th>En la clase desde</th><th class="num">Láminas</th><th class="num">Ejercicios enviados</th>', pupilRows, 'No se ha unido nadie todavía.')}</section>
+<section><h2>Láminas de los alumnos</h2>${table('<th>Lámina</th><th>Sobre</th><th>Enviada</th><th class="num">Tamaño</th><th></th>', sheetRows, 'Ningún alumno ha enviado láminas.')}</section>
+<section class="danger-zone"><h2>Eliminar la clase</h2><p class="muted">Se borran sus ejercicios, la lista de alumnos y todas las láminas enviadas. No se puede deshacer.</p>
+<form method="post" action="/panelcreador/clase/${room.id}/borrar" ${confirmed(`¿Eliminar la clase «${room.nombre}» con todo lo que tiene? No se puede deshacer.`)}><button>Eliminar la clase</button></form></section></main>`)
+}
+
+const back = (to) => new Response(null, { status: 303, headers: { Location: to } })
+
+/** The routes of the classes in the panel; null when the path is not one of them. */
+const classRoute = async (request, env, rest) => {
+  const [kind, id, verb] = rest.split('/')
+  const post = request.method === 'POST'
+  if (kind === 'clase' && /^\d{1,9}$/.test(id ?? '')) {
+    const n = Number(id)
+    if (!verb && !post) return classPage(env, n)
+    if (verb === 'nombre' && post) {
+      let name = ''
+      try {
+        name = String((await request.formData()).get('nombre') ?? '')
+      } catch {
+        /* not a form */
+      }
+      await creator.rename(env, n, name)
+      return back(`/panelcreador/clase/${n}`)
+    }
+    if (verb === 'borrar' && post) {
+      await creator.remove(env, n)
+      return back('/panelcreador')
+    }
+  }
+  if ((kind === 'clase-ejercicio' || kind === 'clase-lamina') && /^[a-f0-9]{24}$/.test(id ?? '')) {
+    const exercise = kind === 'clase-ejercicio'
+    if (!verb && !post) return (exercise ? await creator.exercise(env, id) : await creator.sheet(env, id)) ?? new Response('No encontrado.', { status: 404 })
+    if (verb === 'borrar' && post) {
+      const room = exercise ? await creator.removeExercise(env, id) : await creator.removeSheet(env, id)
+      return back(room ? `/panelcreador/clase/${room}` : '/panelcreador')
+    }
+  }
+  return null
 }
 
 const MAGIC = encoder.encode('LAMINA1\n')
@@ -288,6 +395,8 @@ export const panel = async (request, env) => {
   }
   if (!(await signedIn(request, secret))) return rest ? new Response('No autorizado.', { status: 401 }) : loginPage(false)
   if (!rest) return panelPage(env)
+  const forClass = env.DB && (await classRoute(request, env, rest))
+  if (forClass) return forClass
 
   const [kind, d, f] = rest.split('/').map(decodeURIComponent)
   if (!env.DB || !DEVICE.test(d ?? '') || !PRINT.test(f ?? '')) return new Response('No encontrado.', { status: 404 })

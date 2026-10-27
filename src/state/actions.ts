@@ -33,7 +33,7 @@ import {
 } from '../utils/storage'
 import { appStore, viewActions } from './appStore'
 import { noteExported, noteOpened, type OpenedKind } from './sharing'
-import type { ExerciseRef } from './classes'
+import { SENT_TAG, type ExerciseRef } from './classes'
 import { documentActions, documentStore } from './documentStore'
 
 const nextFrame = () => new Promise((r) => requestAnimationFrame(() => r(undefined)))
@@ -297,6 +297,8 @@ export const saveProject = async () => {
  * The panel serves it only to the signed-in creator; the address is then cleaned.
  */
 export const openFromPanel = async () => {
+  const sheet = new URLSearchParams(location.search).get('verclase')
+  if (sheet && /^[a-f0-9]{24}$/.test(sheet)) return openClassSheetFromPanel(sheet, new URLSearchParams(location.search).get('n'))
   const wanted = new URLSearchParams(location.search).get('ver')
   if (!wanted || !/^[a-z0-9-]+\/[a-f0-9]+$/.test(wanted)) return
   history.replaceState(null, '', '/')
@@ -304,6 +306,24 @@ export const openFromPanel = async () => {
     const reply = await fetch(`/panelcreador/proyecto/${wanted}`)
     if (!reply.ok) throw new Error(`panel ${reply.status}`)
     await loadPdfFile(new File([await reply.arrayBuffer()], 'lamina.lamina'))
+  } catch (err) {
+    console.error(err)
+    appStore.set({ error: 'No se ha podido abrir la lámina. ¿Has entrado en el panel?' })
+  }
+}
+
+/**
+ * Opens a sheet a pupil sent to a class, from the creator's panel ("Abrir en la mesa" links to
+ * /?verclase=<sheet>): in a tab of its own, like a teacher's, never sent on anywhere.
+ */
+const openClassSheetFromPanel = async (sheet: string, name: string | null) => {
+  history.replaceState(null, '', '/')
+  try {
+    const reply = await fetch(`/panelcreador/clase-lamina/${sheet}`)
+    if (!reply.ok) throw new Error(`panel ${reply.status}`)
+    const project = decodeProject(new Uint8Array(await reply.arrayBuffer()))
+    if (!project) throw new Error('lámina dañada')
+    await loadPdf(project.bytes, name ? name.slice(0, 160) + '.pdf' : project.name, { drawing: project, tag: SENT_TAG + sheet })
   } catch (err) {
     console.error(err)
     appStore.set({ error: 'No se ha podido abrir la lámina. ¿Has entrado en el panel?' })
