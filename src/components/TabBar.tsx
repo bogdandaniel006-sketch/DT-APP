@@ -1,7 +1,7 @@
 import { File, FolderOpen, Plus, X } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { SheetFormat } from '../pdf/make'
-import { activateTab, closeTab, newBlankSheet } from '../state/actions'
+import { activateTab, closeTab, newBlankSheet, renameTab } from '../state/actions'
 import { appStore } from '../state/appStore'
 import { useStore } from '../state/createStore'
 import { baseName } from '../utils/download'
@@ -49,10 +49,38 @@ const BlankSheets = ({ close }: { close: () => void }) => {
   )
 }
 
+/** The name of a tab being changed: Enter or a click elsewhere keeps it, Esc leaves it as it was. */
+const TabName = ({ name, onDone }: { name: string; onDone: (typed: string | null) => void }) => {
+  const [value, setValue] = useState(name)
+  const input = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    input.current?.focus()
+    input.current?.select()
+  }, [])
+  return (
+    <input
+      ref={input}
+      value={value}
+      aria-label="Nombre de la pestaña"
+      maxLength={120}
+      onChange={(e) => setValue(e.target.value)}
+      onBlur={() => onDone(value)}
+      onKeyDown={(e) => {
+        e.stopPropagation()
+        if (e.key === 'Enter') onDone(value)
+        if (e.key === 'Escape') onDone(null)
+      }}
+      style={{ width: `${Math.min(Math.max(value.length, 6), 32) + 1}ch` }}
+      className="h-6 rounded-md bg-white px-1.5 text-[12.5px] font-medium text-ink outline-none ring-2 ring-accent/50"
+    />
+  )
+}
+
 /** The open documents, one tab each, and the way to open one more. They stay open until closed. */
 export const TabBar = () => {
   const tabs = useStore(appStore, (s) => s.tabs)
   const active = useStore(appStore, (s) => s.activeTab)
+  const [renaming, setRenaming] = useState<string | null>(null)
 
   return (
     <div className="relative z-[25] flex h-9 shrink-0 items-end gap-1 bg-black/[0.025] px-3 shadow-[inset_0_-1px_0_rgba(15,23,42,0.06)]">
@@ -69,16 +97,27 @@ export const TabBar = () => {
                   : 'text-muted hover:bg-black/[0.04] hover:text-ink'
               }`}
             >
-              <button
-                type="button"
-                role="tab"
-                aria-selected={current}
-                title={name}
-                onClick={() => void activateTab(t.id)}
-                className="max-w-44 truncate outline-none focus-visible:underline"
-              >
-                {name}
-              </button>
+              {renaming === t.id ? (
+                <TabName
+                  name={name}
+                  onDone={(typed) => {
+                    if (typed !== null) renameTab(t.id, typed)
+                    setRenaming(null)
+                  }}
+                />
+              ) : (
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={current}
+                  title={`${name} · doble clic para cambiar el nombre`}
+                  onClick={() => void activateTab(t.id)}
+                  onDoubleClick={() => setRenaming(t.id)}
+                  className="max-w-44 truncate outline-none focus-visible:underline"
+                >
+                  {name}
+                </button>
+              )}
               <button
                 type="button"
                 aria-label={`Cerrar ${name}`}

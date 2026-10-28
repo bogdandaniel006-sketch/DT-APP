@@ -12,7 +12,7 @@ import {
 } from '../geometry/primitives'
 import type { SnapKind, SnapResult } from '../geometry/snapping'
 import { mmToPt } from '../geometry/units'
-import { add, dot, scale, sub } from '../geometry/vec'
+import { add, dot, normalize, scale, sub } from '../geometry/vec'
 import type { Vec } from '../types'
 import { segmentOverlays, snapOverlay } from './overlays'
 import type { Overlay, ReferenceLine, Tool, ToolApi } from './types'
@@ -33,12 +33,16 @@ const rightAngleAt = (foot: Vec, base: Segment, towards: Vec): Overlay => {
   return { kind: 'angle', mark: angleMark(foot, Math.atan2(along.y, along.x), Math.atan2(n.y, n.x)) }
 }
 
+/** From `from` to `to`; with Alt, as far again the other way too, so that `from` is its middle. */
+const reach = (from: Vec, to: Vec, symmetric: boolean): Segment => (symmetric ? segment(sub(scale(from, 2), to), to) : segment(from, to))
+
 /** Snaps to a stroke rather than to a point: a point near the foot of the perpendicular wins over them. */
 const LOOSE_SNAPS: ReadonlySet<SnapKind> = new Set<SnapKind>(['on-line', 'on-circle', 'edge'])
 
 /**
  * Perpendicular: pick a line, then a point. Off the line → segment from the
- * point to its foot. On the line → a third click sets the length.
+ * point to its foot. On the line → a third click sets the length. With Alt it grows both
+ * ways, as much on the other side of the line as on the cursor's.
  */
 export const createPerpendicularTool = (): Tool => {
   let base: Segment | null = null
@@ -47,6 +51,7 @@ export const createPerpendicularTool = (): Tool => {
   let hover: ReferenceLine | null = null
   let cursor: Vec | null = null
   let snap: SnapResult | null = null
+  let symmetric = false
 
   const lengthEnd = (p: Vec): Vec | null => {
     if (!base || !through) return null
@@ -70,7 +75,8 @@ export const createPerpendicularTool = (): Tool => {
       const foot = through ?? projectPointOnLine(p, base.a, base.b)
       const n = normalOf(base)
       const side = dot(sub(p, foot), n) < 0 ? -1 : 1
-      api.create([segment(foot, add(foot, scale(n, side * mmToPt(mm))))])
+      // Symmetric, the figure typed is the whole length, half each side.
+      api.create([reach(foot, add(foot, scale(n, (side * mmToPt(mm)) / (symmetric ? 2 : 1))), symmetric)])
       reset()
     },
     down(e, api) {
@@ -82,15 +88,16 @@ export const createPerpendicularTool = (): Tool => {
         return
       }
       const p = cursor ?? e.world
+      symmetric = e.alt
       if (through) {
         const end = lengthEnd(p)
-        if (end && distance(through, end) > api.px(2)) api.create([segment(through, end)])
+        if (end && distance(through, end) > api.px(2)) api.create([reach(through, end, symmetric)])
         reset()
         return
       }
       const perp = perpendicular(base, p)
       if (distance(perp.a, perp.b) > api.px(3)) {
-        api.create([perp])
+        api.create([reach(perp.b, perp.a, symmetric)])
         reset()
       } else {
         through = perp.b
@@ -103,6 +110,7 @@ export const createPerpendicularTool = (): Tool => {
         cursor = null
         return
       }
+      symmetric = e.alt
       snap = api.snap(e.world)
       cursor = snap.p
       if (through || (snap.kind && !LOOSE_SNAPS.has(snap.kind))) return
@@ -129,14 +137,16 @@ export const createPerpendicularTool = (): Tool => {
         const end = lengthEnd(cursor)
         out.push({ kind: 'ray', origin: through, dir: Math.atan2(normalOf(base).y, normalOf(base).x) })
         if (end && distance(through, end) > api.px(2)) {
-          out.push(rightAngleAt(through, base, end), ...segmentOverlays(through, end, api, { excludeId: baseId }))
+          const drawn = reach(through, end, symmetric)
+          out.push(rightAngleAt(through, base, end), ...segmentOverlays(drawn.a, drawn.b, api, { excludeId: baseId }))
         }
         return [...out, ...snapOverlay(snap)]
       }
       const perp = perpendicular(base, cursor)
       if (distance(perp.a, perp.b) > api.px(3)) {
+        const drawn = reach(perp.b, perp.a, symmetric)
         out.push(...extensionGuide(base, perp.b), rightAngleAt(perp.b, base, perp.a))
-        out.push(...segmentOverlays(perp.a, perp.b, api, { excludeId: baseId }))
+        out.push(...segmentOverlays(drawn.a, drawn.b, api, { excludeId: baseId }))
       } else {
         out.push({ kind: 'ray', origin: perp.b, dir: Math.atan2(normalOf(base).y, normalOf(base).x) })
       }
@@ -144,8 +154,8 @@ export const createPerpendicularTool = (): Tool => {
     },
     hint() {
       if (!base) return 'Selecciona la recta de referencia'
-      if (through) return 'Clic para fijar la longitud de la perpendicular · o escríbela'
-      return 'Selecciona el punto por el que pasa la perpendicular · o escribe su longitud · el pie se ajusta a los puntos de la recta'
+      if (through) return 'Clic para fijar la longitud de la perpendicular · o escríbela · Alt: hacia los dos lados'
+      return 'Selecciona el punto por el que pasa la perpendicular · o escribe su longitud · Alt: hacia los dos lados'
     },
   }
 }
@@ -200,26 +210,55 @@ export const createBisectorTool = (): Tool => {
   }
 }
 
-/** Parallel: pick a line, then a point; the line is copied through that point. */
+/**
+ * Parallel: pick a line, then the point it goes through, then how far it reaches: it grows from
+ * that point towards the cursor, as long as wanted, like a perpendicular. With Alt it grows both
+ * ways. A click without moving copies the line as it is, its own length.
+ */
 export const createParallelTool = (): Tool => {
   let base: Segment | null = null
   let baseId: string | undefined
+  let through: Vec | null = null
   let hover: ReferenceLine | null = null
   let cursor: Vec | null = null
   let snap: SnapResult | null = null
+  let symmetric = false
+
+  const along = () => (base ? normalize(sub(base.b, base.a)) : { x: 1, y: 0 })
+
+  /** Where the parallel ends for the cursor at p: p brought onto the parallel. */
+  const lengthEnd = (p: Vec): Vec | null => {
+    if (!through) return null
+    const d = along()
+    return add(through, scale(d, dot(sub(p, through), d)))
+  }
+
+  const reset = () => {
+    base = null
+    through = null
+  }
 
   return {
     exact() {
-      return base ? { label: 'Distancia', unit: 'mm' } : null
+      if (!base) return null
+      return through ? { label: 'Longitud', unit: 'mm' } : { label: 'Distancia', unit: 'mm' }
     },
     applyExact(mm, api) {
       if (!base || mm <= 0) return
-      // At that distance from the line, on the side the cursor is on.
       const p = cursor ?? base.b
-      const n = normalOf(base)
-      const side = dot(sub(p, projectPointOnLine(p, base.a, base.b)), n) < 0 ? -1 : 1
-      api.create([parallel(base, add(base.a, scale(n, side * mmToPt(mm))))])
-      base = null
+      if (!through) {
+        // At that distance from the line, on the side the cursor is on, level with the cursor; then its length.
+        const foot = projectPointOnLine(p, base.a, base.b)
+        const n = normalOf(base)
+        const side = dot(sub(p, foot), n) < 0 ? -1 : 1
+        through = add(foot, scale(n, side * mmToPt(mm)))
+        return
+      }
+      // Towards the cursor; symmetric, the figure typed is the whole length, half each side.
+      const d = along()
+      const sign = dot(sub(p, through), d) < 0 ? -1 : 1
+      api.create([reach(through, add(through, scale(d, (sign * mmToPt(mm)) / (symmetric ? 2 : 1))), symmetric)])
+      reset()
     },
     down(e, api) {
       if (!base) {
@@ -229,40 +268,66 @@ export const createParallelTool = (): Tool => {
         hover = null
         return
       }
+      symmetric = e.alt
       const p = snap?.p ?? e.world
-      const copy = parallel(base, p)
-      if (distance(projectPointOnLine(p, base.a, base.b), p) > api.px(2)) api.create([copy])
-      base = null
+      if (!through) {
+        if (distance(projectPointOnLine(p, base.a, base.b), p) > api.px(2)) through = p
+        return
+      }
+      const end = lengthEnd(p)
+      // Not moved: the line copied through the point, as long as the original.
+      if (!end || distance(through, end) <= api.px(3)) api.create([parallel(base, through)])
+      else api.create([reach(through, end, symmetric)])
+      reset()
     },
     move(e, api) {
       if (!base) {
         hover = pickLine(api, e.world)
         return
       }
-      snap = api.snap(e.world)
+      symmetric = e.alt
+      if (!through) {
+        snap = api.snap(e.world)
+        cursor = snap.p
+        return
+      }
+      // The end slides along the parallel, stopping where it meets other strokes.
+      snap = api.snapAlong(e.world, through, sub(base.b, base.a))
       cursor = snap.p
     },
     up() {},
     cancel() {
       const had = base !== null
-      base = null
+      reset()
       return had
     },
     overlays(api) {
       if (!base) return hover ? [{ kind: 'highlight', geom: hover.seg }] : []
       const out: Overlay[] = [{ kind: 'highlight', geom: base }]
       if (!cursor) return out
-      const copy = parallel(base, cursor)
-      const foot = projectPointOnLine(cursor, base.a, base.b)
-      if (distance(foot, cursor) > api.px(2)) {
-        out.push({ kind: 'guide', a: foot, b: cursor })
-        out.push(...segmentOverlays(copy.a, copy.b, api, { excludeId: baseId }))
-        out.push({ kind: 'marker', p: cursor })
+      if (!through) {
+        const foot = projectPointOnLine(cursor, base.a, base.b)
+        if (distance(foot, cursor) > api.px(2)) {
+          const copy = parallel(base, cursor)
+          out.push({ kind: 'guide', a: foot, b: cursor }, { kind: 'ghost', geom: copy, faint: true }, { kind: 'marker', p: cursor })
+        }
+        return [...out, ...snapOverlay(snap)]
+      }
+      const d = along()
+      out.push({ kind: 'ray', origin: through, dir: Math.atan2(d.y, d.x) }, { kind: 'marker', p: through })
+      const end = lengthEnd(cursor)
+      if (end && distance(through, end) > api.px(3)) {
+        const drawn = reach(through, end, symmetric)
+        out.push(...segmentOverlays(drawn.a, drawn.b, api, { excludeId: baseId }))
+      } else {
+        out.push({ kind: 'ghost', geom: parallel(base, through), faint: true })
       }
       return [...out, ...snapOverlay(snap)]
     },
     hint() {
-      return base ? 'Selecciona el punto por el que pasa la paralela · o escribe la distancia' : 'Selecciona la recta de referencia'
+      if (!base) return 'Selecciona la recta de referencia'
+      if (!through) return 'Selecciona el punto por el que pasa la paralela · o escribe la distancia'
+      return 'Mueve el cursor para alargarla y haz clic · o escribe su longitud · Alt: hacia los dos lados · clic sin mover: igual que la original'
     },
   }
 }

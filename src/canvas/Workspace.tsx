@@ -445,6 +445,27 @@ export const Workspace = ({ spaceDown }: { spaceDown: boolean }) => {
     // Only a change of view should replay the cursor.
   }, [view])
 
+  // Pressing or letting go of Alt or Shift changes the construction under a still cursor at once
+  // (a symmetric perpendicular, a locked angle), without waiting for the mouse to move.
+  useEffect(() => {
+    const onModifier = (e: KeyboardEvent) => {
+      if (e.key !== 'Alt' && e.key !== 'Shift') return
+      const last = lastPointer.current
+      if (!last || pan.current || (e.target instanceof HTMLElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName))) return
+      // Alt on its own would otherwise send the focus to the browser's menu.
+      if (e.key === 'Alt') e.preventDefault()
+      lastPointer.current = { ...last, alt: e.altKey, shift: e.shiftKey }
+      tool.move(lastPointer.current, api)
+      bumpTools()
+    }
+    window.addEventListener('keydown', onModifier)
+    window.addEventListener('keyup', onModifier)
+    return () => {
+      window.removeEventListener('keydown', onModifier)
+      window.removeEventListener('keyup', onModifier)
+    }
+  }, [tool, api])
+
   const onPointerMove = (e: ReactPointerEvent) => {
     if (e.pointerType === 'touch' && touchOn()) return touchMove(e)
     lastPointer.current = pointer(e)

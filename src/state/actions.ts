@@ -403,6 +403,23 @@ export const duplicateSelection = () => {
   appStore.set({ tool: 'select', selection: copies.map((s) => s.id) })
 }
 
+/**
+ * Gives a document another name (a picture called "IMG_2041" becomes "Lámina 5"): its tab, the
+ * name it is exported and saved under, and the one it is sent to a teacher with.
+ */
+export const renameTab = (id: string, typed: string) => {
+  const name = typed.replace(/[\u0000-\u001f]/g, ' ').trim().replace(/\.pdf$/i, '').slice(0, 120)
+  const { tabs, activeTab } = appStore.get()
+  const tab = tabs.find((t) => t.id === id)
+  if (!name || !tab || baseName(tab.name) === name) return
+  const file = `${name}.pdf`
+  appStore.set({ tabs: tabs.map((t) => (t.id === id ? { ...t, name: file } : t)), ...(id === activeTab && { fileName: file }) })
+  const session = getSession()
+  if (id === activeTab && session) session.name = file
+  rememberTabs()
+  void loadTabFile(id).then((stored) => stored && saveTabFile(id, { ...stored, name: file }))
+}
+
 /** The sheet on the desk has just been sent to a teacher: its tab remembers when. */
 export const noteTabSent = () => {
   const { tabs, activeTab } = appStore.get()

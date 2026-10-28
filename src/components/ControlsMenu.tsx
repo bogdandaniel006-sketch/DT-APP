@@ -29,7 +29,7 @@ const FIXED: { title: string; controls: Control[] }[] = [
       { keys: 'Shift', action: 'Bloquea el ángulo cada 15° al trazar o mover un extremo' },
       { keys: 'Ctrl + arrastrar extremo', action: 'Alarga la línea sin cambiar su dirección' },
       { keys: 'Número + Intro', action: 'Medida exacta mientras trazas: longitud, radio, ángulo o distancia de la paralela' },
-      { keys: 'Alt', action: 'Mueve la escuadra o el cartabón sin enganche' },
+      { keys: 'Alt', action: 'Perpendicular y paralela hacia los dos lados; mueve la escuadra o el cartabón sin enganche' },
       { keys: 'Esc · clic derecho', action: 'Cancela el trazo en curso' },
     ],
   },
