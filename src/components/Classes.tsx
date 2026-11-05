@@ -1,4 +1,4 @@
-import { ArrowLeft, BookOpen, Check, ChevronDown, Copy, FileUp, GraduationCap, RotateCw, Send, Trash2, UserRound, Users, X } from 'lucide-react'
+import { ArrowLeft, BookOpen, Check, ChevronDown, Link2, Copy, FileUp, GraduationCap, RotateCw, Send, Trash2, UserRound, Users, X } from 'lucide-react'
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { imagePdf } from '../pdf/make'
@@ -25,6 +25,7 @@ import {
   deleteSent,
   exercisePdf,
   forgetClass,
+  inviteLink,
   isTeacherCode,
   joinClass,
   pupilView,
@@ -51,11 +52,28 @@ type Screen =
   | { kind: 'home' }
   | { kind: 'create' }
   | { kind: 'teacher-login' }
-  | { kind: 'join' }
+  | { kind: 'join'; code?: string }
   | { kind: 'teacher'; code: string; fresh?: boolean }
   | { kind: 'pupil'; room: PupilClass }
   | { kind: 'pupils'; code: string }
   | { kind: 'pupil-detail'; code: string; clave: string; name: string }
+
+/**
+ * Opened from an invitation link (/?unirse=<pupils' code>): straight to joining that class, on the
+ * start screen; once in, the site is as ever. Already in it: that class. The address is cleaned.
+ */
+const invited = new URLSearchParams(location.search).get('unirse')
+
+export const openInvite = () => {
+  const given = invited
+  if (!given) return
+  if (location.search) history.replaceState(null, '', '/')
+  const code = cleanCode(given)
+  if (code.length !== 6 || isTeacherCode(code)) return
+  if (appStore.get().phase === 'ready') goToStart()
+  const mine = classStore.get().pupil.find((c) => c.code === code)
+  openPanel(mine ? { kind: 'pupil', room: mine } : { kind: 'join', code })
+}
 
 /** The classes window: closed, or open on a screen. */
 export const panelStore = createStore<{ screen: Screen | null }>({ screen: null })
@@ -87,12 +105,13 @@ const SectionTitle = ({ children, action }: { children: ReactNode; action?: Reac
 )
 
 /** A code with a button to copy it. */
-const CodeBox = ({ label, code, note }: { label: string; code: string; note: string }) => {
-  const [copied, setCopied] = useState(false)
-  const copy = () => {
-    void navigator.clipboard?.writeText(showCode(code)).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
+const CodeBox = ({ label, code, note, invite }: { label: string; code: string; note: string; invite?: boolean }) => {
+  const [copied, setCopied] = useState<'code' | 'link' | null>(null)
+  const [link, setLink] = useState<string | null>(null)
+  const copy = (what: 'code' | 'link', text: string) => {
+    void navigator.clipboard?.writeText(text).then(() => {
+      setCopied(what)
+      setTimeout(() => setCopied(null), 1500)
     })
   }
   return (
@@ -100,12 +119,28 @@ const CodeBox = ({ label, code, note }: { label: string; code: string; note: str
       <p className="text-[11.5px] font-medium text-muted">{label}</p>
       <div className="mt-1 flex items-center gap-2">
         <code className={`min-w-0 flex-1 select-all whitespace-nowrap font-mono font-semibold text-ink ${code.length > 8 ? 'text-[13.5px] tracking-wide' : 'text-[17px] tracking-wider'}`}>{showCode(code)}</code>
-        <button type="button" onClick={copy} className={SOFT} aria-label={`Copiar ${label.toLowerCase()}`}>
-          {copied ? <Check size={14} /> : <Copy size={14} />}
-          {copied ? 'Copiado' : 'Copiar'}
+        <button type="button" onClick={() => copy('code', showCode(code))} className={SOFT} aria-label={`Copiar ${label.toLowerCase()}`}>
+          {copied === 'code' ? <Check size={14} /> : <Copy size={14} />}
+          {copied === 'code' ? 'Copiado' : 'Copiar'}
         </button>
       </div>
       <p className="mt-1 text-[11.5px] leading-snug text-muted">{note}</p>
+      {invite &&
+        (link ? (
+          <div className="mt-2 flex items-center gap-2 rounded-xl bg-white px-2.5 py-1.5 ring-1 ring-black/[0.06]">
+            <code className="min-w-0 flex-1 select-all truncate font-mono text-[12px] text-ink">{link}</code>
+            <button type="button" onClick={() => copy('link', link)} className={SOFT}>
+              {copied === 'link' ? <Check size={14} /> : <Copy size={14} />}
+              {copied === 'link' ? 'Copiado' : 'Copiar enlace'}
+            </button>
+          </div>
+        ) : (
+          <button type="button" onClick={() => setLink(inviteLink(code))} className={`${QUIET} -ml-2.5 mt-1`}>
+            <Link2 size={14} />
+            Crear enlace para unirse
+          </button>
+        ))}
+      {invite && link && <p className="mt-1 text-[11px] leading-snug text-muted">Quien lo abra entra directo a la clase: solo tendrá que poner su nombre.</p>}
     </div>
   )
 }
@@ -242,8 +277,12 @@ const TeacherLogin = ({ go }: { go: (s: Screen) => void }) => {
   )
 }
 
-const Join = ({ go }: { go: (s: Screen) => void }) => {
-  const [code, setCode] = useState('')
+const Join = ({ go, given }: { go: (s: Screen) => void; given?: string }) => {
+  const [code, setCode] = useState(given ?? '')
+  const [className, setClassName] = useState<string | null>(null)
+  useEffect(() => {
+    if (given) pupilView(cleanCode(given)).then((v) => setClassName(v.nombre), (err: unknown) => setError(message(err)))
+  }, [given])
   const [first, setFirst] = useState('')
   const [initial, setInitial] = useState('')
   const [busy, setBusy] = useState(false)
@@ -265,14 +304,20 @@ const Join = ({ go }: { go: (s: Screen) => void }) => {
   }
   return (
     <form onSubmit={(e) => void submit(e)} className="flex flex-col gap-3">
-      <label>
-        <Label>Código de la clase</Label>
-        <input className={`${FIELD} font-mono uppercase tracking-wider`} value={code} onChange={(e) => setCode(e.target.value)} placeholder="XXX-XXX" autoFocus autoComplete="off" />
-      </label>
+      {given ? (
+        <p className="rounded-xl bg-accent-soft px-3 py-2.5 text-[13.5px] leading-snug text-ink">
+          Te vas a unir a <b className="font-semibold">{className ? `«${className}»` : 'la clase'}</b>. Pon tu nombre y ya está.
+        </p>
+      ) : (
+        <label>
+          <Label>Código de la clase</Label>
+          <input className={`${FIELD} font-mono uppercase tracking-wider`} value={code} onChange={(e) => setCode(e.target.value)} placeholder="XXX-XXX" autoFocus autoComplete="off" />
+        </label>
+      )}
       <div className="flex gap-2">
         <label className="flex-1">
           <Label>Tu nombre</Label>
-          <input className={FIELD} value={first} onChange={(e) => setFirst(e.target.value)} maxLength={40} placeholder="Ana" autoComplete="given-name" />
+          <input className={FIELD} value={first} onChange={(e) => setFirst(e.target.value)} maxLength={40} placeholder="Ana" autoComplete="given-name" autoFocus={Boolean(given)} />
         </label>
         <label className="w-32">
           <Label>Inicial del apellido</Label>
@@ -399,7 +444,7 @@ const Teacher = ({ code, fresh, go, close }: { code: string; fresh?: boolean; go
         </p>
       )}
       <div className="flex flex-col gap-2 sm:flex-row">
-        <CodeBox label="Código para los alumnos" code={view.alumnos} note="Dáselo a tus alumnos para que se unan." />
+        <CodeBox label="Código para los alumnos" code={view.alumnos} note="Dáselo a tus alumnos para que se unan." invite />
         <CodeBox label="Tu código de profesor" code={view.profesor} note="Solo para ti: abre la clase en otro navegador." />
       </div>
       <button type="button" onClick={() => go({ kind: 'pupils', code })} className={`${PRIMARY} mt-3 w-full`}>
@@ -1045,7 +1090,7 @@ export const ClassesPanel = () => {
           {screen.kind === 'home' && <Home go={setScreen} />}
           {screen.kind === 'create' && <Create go={setScreen} />}
           {screen.kind === 'teacher-login' && <TeacherLogin go={setScreen} />}
-          {screen.kind === 'join' && <Join go={setScreen} />}
+          {screen.kind === 'join' && <Join key={screen.code ?? ''} go={setScreen} given={screen.code} />}
           {screen.kind === 'teacher' && <Teacher key={screen.code} code={screen.code} fresh={screen.fresh} go={setScreen} close={closePanel} />}
           {screen.kind === 'pupils' && <TeacherPupils key={screen.code} code={screen.code} go={setScreen} />}
           {screen.kind === 'pupil-detail' && <TeacherPupilDetail key={screen.clave} code={screen.code} clave={screen.clave} />}
@@ -1110,7 +1155,7 @@ const TeacherSummary = ({ code }: { code: string }) => {
 
   return (
     <>
-      <CodeBox label="Código para los alumnos" code={view.alumnos} note="Dáselo a tus alumnos para que se unan." />
+      <CodeBox label="Código para los alumnos" code={view.alumnos} note="Dáselo a tus alumnos para que se unan." invite />
       <div className="mt-2 flex gap-2">
         <Stat value={view.ejercicios.length} label={view.ejercicios.length === 1 ? 'ejercicio' : 'ejercicios'} />
         <Stat value={view.entregas.length} label={view.entregas.length === 1 ? 'lámina recibida' : 'láminas recibidas'} />

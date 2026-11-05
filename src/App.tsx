@@ -9,7 +9,7 @@ import { TabBar } from './components/TabBar'
 import { Toolbar } from './components/Toolbar'
 import { TopBar } from './components/TopBar'
 import { TouchHelp, TouchOffer } from './components/TouchHelp'
-import { ClassesTip } from './components/Classes'
+import { ClassesTip, openInvite } from './components/Classes'
 import { ClassNews, PupilSendBar, SendWindow, useClassNews } from './components/ClassDesk'
 import { useAutosave } from './hooks/useAutosave'
 import { useKeyboard } from './hooks/useKeyboard'
@@ -44,6 +44,7 @@ export const App = () => {
     void restoreLastSession().then(() => {
       void openHandedProject()
       void openFromPanel()
+      openInvite()
       const queue = (window as { launchQueue?: LaunchQueue }).launchQueue
       queue?.setConsumer((params) => {
         void (async () => {

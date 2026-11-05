@@ -81,7 +81,8 @@ form.inline{display:inline;margin:0}button.btn{border:0;cursor:pointer;font:inhe
 button.btn.danger,a.btn.danger{background:#fdecec;color:#dc2626}button.btn:hover{filter:brightness(.96)}
 .rename{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.rename input{height:36px;border-radius:10px;border:0;background:#f1f2f4;padding:0 12px;font:inherit;min-width:260px}
 .rename button,.danger-zone button{height:36px;border:0;border-radius:10px;padding:0 14px;font:inherit;font-weight:600;cursor:pointer;background:var(--accent);color:#fff}
-.danger-zone button{background:#dc2626}.group td{background:#fafbfc;font-weight:600}.empty{color:var(--muted);padding:8px 0}
+.danger-zone button{background:#dc2626}.group td{background:#fafbfc;font-weight:600}
+.invite{margin:4px 0 14px}.invite summary{cursor:pointer;color:var(--accent);font-weight:500;font-size:13px}.invite-row{display:flex;gap:8px;align-items:center;margin:8px 0 4px}.invite-row input{flex:1;max-width:420px;height:34px;border-radius:10px;border:0;background:#f1f2f4;padding:0 10px;font:12.5px ui-monospace,Consolas,monospace}.empty{color:var(--muted);padding:8px 0}
 `
 
 const FAILED = {
@@ -267,6 +268,8 @@ const classPage = async (env, id) => {
 <section><h2>La clase</h2>
 <p>Código de profesor <code class="key">${escape(showCode(room.profesor))}</code> · código de alumnos <code class="key">${escape(showCode(room.alumnos))}</code></p>
 <p class="muted">Creada el ${when(room.creada)} · último uso ${when(room.usada)}</p>
+<details class="invite"><summary>Generar enlace para unirse</summary><p class="invite-row"><input readonly class="link" data-code="${escape(showCode(room.alumnos))}" aria-label="Enlace para unirse" onclick="this.select()"><button class="btn" type="button" onclick="navigator.clipboard.writeText(this.previousElementSibling.value);this.textContent='Copiado'">Copiar</button></p><p class="muted">Quien lo abra entra directo a esta clase y solo tiene que poner su nombre.</p></details>
+<script>document.querySelectorAll("input.link").forEach(function(i){i.value=location.origin+"/?unirse="+i.dataset.code})</script>
 <form class="rename" method="post" action="/panelcreador/clase/${room.id}/nombre"><input name="nombre" value="${escape(room.nombre)}" maxlength="80" required aria-label="Nombre de la clase"><button>Cambiar el nombre</button></form></section>
 <section><h2>Ejercicios del profesor</h2>${table('<th>Ejercicio</th><th>Subido</th><th class="num">Enviadas</th><th class="num">Tamaño</th><th></th>', exerciseRows, 'El profesor no ha puesto ejercicios.')}</section>
 <section><h2>Alumnos · por orden de lista</h2>${table('<th>Alumno</th><th>En la clase desde</th><th class="num">Láminas</th><th class="num">Ejercicios enviados</th>', pupilRows, 'No se ha unido nadie todavía.')}</section>

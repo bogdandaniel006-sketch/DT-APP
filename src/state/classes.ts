@@ -115,6 +115,9 @@ const remember = (patch: Partial<{ teacher: TeacherClass[]; pupil: PupilClass[] 
 
 /** What was typed, as the server keeps it: capitals, without spaces or dashes. */
 export const cleanCode = (typed: string) => typed.toUpperCase().replace(/[^A-Z0-9]/g, '')
+/** The link that joins a class straight away, for whoever would rather not type the code. */
+export const inviteLink = (pupilsCode: string) => `${location.origin}/?unirse=${showCode(pupilsCode)}`
+
 export const isTeacherCode = (code: string) => code.startsWith('P') && code.length === 16
 /** A code as it is shown: in groups of three (pupils) or four (teacher). */
 export const showCode = (code: string) => code.match(code.length > 8 ? /.{1,4}/g : /.{1,3}/g)?.join('-') ?? code
