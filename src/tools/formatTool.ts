@@ -13,6 +13,7 @@ interface Format {
 const describe = (f: Format) => {
   const parts = [`${String(f.pencil.width).replace('.', ',')} ${f.pencil.hardness}`]
   if (f.pencil.dashed) parts.push('discontinua')
+  if (f.pencil.dashDot) parts.push('trazo y punto')
   if (f.pencil.color) parts.push('en color')
   return parts.join(' · ')
 }

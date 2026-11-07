@@ -35,16 +35,20 @@ const HARDNESS = [
   { value: 'H', label: 'H' },
   { value: 'HB', label: 'HB' },
 ] as const
-/** A short line, continuous or dashed: the choice of stroke, drawn instead of written. */
-const LineSample = ({ dashed = false }: { dashed?: boolean }) => (
-  <svg width="22" height="12" viewBox="0 0 22 12" aria-hidden className="block">
-    <path d="M2 6h18" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeDasharray={dashed ? '4 3' : undefined} />
+type StrokeKind = 'solid' | 'dashed' | 'dashdot'
+const SAMPLE_DASH: Record<StrokeKind, string | undefined> = { solid: undefined, dashed: '4 3', dashdot: '7 3 0.1 3' }
+/** A short line, continuous, dashed or chain: the choice of stroke, drawn instead of written. */
+const LineSample = ({ kind = 'solid' }: { kind?: StrokeKind }) => (
+  <svg width="24" height="12" viewBox="0 0 24 12" aria-hidden className="block">
+    <path d="M2 6h20" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeDasharray={SAMPLE_DASH[kind]} />
   </svg>
 )
 const STROKES = [
   { value: 'solid', label: <LineSample />, hint: 'Continua' },
-  { value: 'dashed', label: <LineSample dashed />, hint: 'Discontinua' },
+  { value: 'dashed', label: <LineSample kind="dashed" />, hint: 'Discontinua' },
+  { value: 'dashdot', label: <LineSample kind="dashdot" />, hint: 'Trazo y punto · ejes de simetría' },
 ] as const
+const strokeOf = (pencil: Pencil): StrokeKind => (pencil.dashDot ? 'dashdot' : pencil.dashed ? 'dashed' : 'solid')
 
 /** How graphite shows in the colour picker (the real shade depends on the lead). */
 const GRAPHITE_SWATCH = '#1F2329'
@@ -143,11 +147,11 @@ const PencilPicker = ({ pencil, onChange, heading = true }: { pencil: Pencil; on
       options={HARDNESS}
       onChange={(hardness) => onChange({ ...pencil, hardness })}
     />
-    <Segmented<'solid' | 'dashed'>
+    <Segmented<StrokeKind>
       label="Trazo"
-      value={pencil.dashed ? 'dashed' : 'solid'}
+      value={strokeOf(pencil)}
       options={STROKES}
-      onChange={(stroke) => onChange({ ...pencil, dashed: stroke === 'dashed' })}
+      onChange={(stroke) => onChange({ ...pencil, dashed: stroke === 'dashed', dashDot: stroke === 'dashdot' })}
     />
     <ColorPicker color={pencil.color} onChange={(color) => onChange({ ...pencil, color })} />
   </div>
@@ -337,6 +341,7 @@ const SelectionInfo = ({ ids }: { ids: readonly string[] }) => {
       s.pencil.width === first.pencil.width &&
       s.pencil.hardness === first.pencil.hardness &&
       !s.pencil.dashed === !first.pencil.dashed &&
+      !s.pencil.dashDot === !first.pencil.dashDot &&
       s.pencil.color === first.pencil.color,
   )
   // Contextual facts, read from the exact document coordinates.

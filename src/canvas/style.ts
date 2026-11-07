@@ -29,7 +29,9 @@ export const PENCIL_COLORS: readonly { value: string; label: string }[] = [
 ]
 
 /** Dashed strokes: dash and gap on paper, as drawn by hand for hidden lines. */
-const DASH: readonly [number, number] = [mmToPt(3), mmToPt(1.5)]
+const DASH: readonly number[] = [mmToPt(3), mmToPt(1.5)]
+/** Chain lines, for axes of symmetry: a long dash, a gap, a dot, a gap. */
+const DASH_DOT: readonly number[] = [mmToPt(6), mmToPt(1.2), mmToPt(0.4), mmToPt(1.2)]
 
 /** The black sheet, chosen when making a blank one: drawn on in white. */
 export const SHEET_DARK = '#16181B'
@@ -48,7 +50,7 @@ export const sheetColor = (dark: boolean) => (dark ? SHEET_DARK : '#FFFFFF')
 export const pencilStroke = (pencil: Pencil, dark = false) => ({
   color: pencil.color ?? (dark ? GRAPHITE_ON_DARK : GRAPHITE)[pencil.hardness],
   width: mmToPt(pencil.width),
-  dash: pencil.dashed ? DASH : null,
+  dash: pencil.dashDot ? DASH_DOT : pencil.dashed ? DASH : null,
 })
 
 export const LAYER_OPACITY: Record<LayerId, number> = {

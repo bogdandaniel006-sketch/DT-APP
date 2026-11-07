@@ -72,6 +72,8 @@ export interface Pencil {
   hardness: PencilHardness
   /** Dashed stroke. Only ever set by hand: no layer or default turns it on. */
   dashed?: boolean
+  /** Chain line (long dash, dot, long dash): axes of symmetry and centre lines. Set by hand, never with `dashed`. */
+  dashDot?: boolean
   /** Colour other than graphite (hex). Like dashes, only ever set by hand. */
   color?: string
 }
