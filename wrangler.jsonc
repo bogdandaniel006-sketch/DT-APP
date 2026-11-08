@@ -2,6 +2,9 @@
   "name": "danidemiguel",
   "main": "worker/index.js",
   "compatibility_date": "2026-01-01",
+  // The public address, for redirects: behind our own proxy (proxy/Caddyfile) requests arrive at the worker's own one.
+  // The PROXY_KEY secret, set in Cloudflare and never here, is what lets the proxy pass on the visitor's address.
+  "vars": { "PUBLIC_URL": "https://danidemiguel.com" },
   "build": { "command": "npm run build" },
   "assets": {
     "directory": "./dist",

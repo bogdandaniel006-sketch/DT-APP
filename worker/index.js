@@ -15,7 +15,7 @@ import { panel } from './panel.js'
 import { fetchSheet, originalOf } from './ejercicios.js'
 import { registro } from './registro.js'
 import { clases } from './clases.js'
-import { slowDown, tooMany } from './limites.js'
+import { noteClient, slowDown, tooMany } from './limites.js'
 
 /** Largest project opened from a web file (its PDF and strokes, as text). */
 const MAX_PROJECT = 40 * 1024 * 1024
@@ -27,6 +27,8 @@ const MAX_PROJECT = 40 * 1024 * 1024
  */
 const openProject = async (request, env) => {
   const home = new URL('/', request.url)
+  // Through our own proxy request.url is the worker's own address: people go back to the public one.
+  const site = env.PUBLIC_URL ?? home.origin
   if (tooMany(request, 'abrir', 20)) return slowDown()
   if (Number(request.headers.get('content-length') ?? 0) > MAX_PROJECT) return new Response('El proyecto es demasiado grande.', { status: 413 })
   let data = ''
@@ -35,7 +37,7 @@ const openProject = async (request, env) => {
   } catch {
     /* not a form: nothing to open */
   }
-  if (!data || !/^[A-Za-z0-9+/=]+$/.test(data)) return Response.redirect(home.href, 303)
+  if (!data || !/^[A-Za-z0-9+/=]+$/.test(data)) return Response.redirect(`${site}/`, 303)
   const page = await (await env.ASSETS.fetch(new Request(home))).text()
   const handed = `<script id="lamina-open" type="application/octet-stream">${data}</script>`
   return new Response(page.replace('</head>', () => handed + '</head>'), {
@@ -45,6 +47,7 @@ const openProject = async (request, env) => {
 
 export default {
   async fetch(request, env) {
+    noteClient(request, env)
     const { pathname } = new URL(request.url)
     if (request.method === 'POST' && pathname === '/abrir') return openProject(request, env)
     if (pathname.startsWith('/registro/')) return registro(request, env, pathname.slice(10))
