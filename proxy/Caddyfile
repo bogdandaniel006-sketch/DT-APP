@@ -1,0 +1,27 @@
+# Puerta de entrada de danidemiguel.com en el VPS (IONOS, 31.70.173.233), compartido con crowntacos.es.
+#
+# Por qué: en días de partido de LaLiga las operadoras españolas bloquean IPs compartidas de Cloudflare
+# y la web deja de cargar. El dominio apunta a este servidor, con IP propia, que pasa cada visita al
+# Worker «danidemiguel» en su dirección workers.dev. La web sigue entera en Cloudflare (Worker, D1, todo).
+#
+# Este bloque se AÑADE al final de /etc/caddy/Caddyfile, debajo de los de crowntacos.es, que no se tocan.
+# La clave va en /etc/systemd/system/caddy.service.d/proxy.conf como Environment=PROXY_KEY_DANI=…,
+# y es la misma que el secreto PROXY_KEY del Worker (copia local: C:\Users\dbent\.ssh\danydemiguel_proxy_key.txt).
+# El Worker solo se cree X-Client-IP cuando viene con esa clave (worker/limites.js).
+
+danidemiguel.com {
+	tls aldanidaniel12@gmail.com
+	encode zstd gzip
+	reverse_proxy https://danidemiguel.aldanidaniel12.workers.dev {
+		header_up Host danidemiguel.aldanidaniel12.workers.dev
+		header_up X-Proxy-Key {$PROXY_KEY_DANI}
+		header_up X-Client-IP {remote_host}
+		transport http {
+			tls_server_name danidemiguel.aldanidaniel12.workers.dev
+		}
+	}
+}
+
+www.danidemiguel.com {
+	redir https://danidemiguel.com{uri} permanent
+}
