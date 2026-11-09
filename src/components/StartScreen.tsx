@@ -6,6 +6,7 @@ import { reviewSharing } from '../state/sharing'
 import { baseName } from '../utils/download'
 import { ClassesCard, ClassesPanel } from './Classes'
 import { ClassNews } from './ClassDesk'
+import { Celebration } from './Celebration'
 import { Credit } from './Credit'
 import { ExercisesButton } from './Exercises'
 import { ThemeToggle } from './ThemeToggle'
@@ -41,6 +42,7 @@ export const StartScreen = () => {
           <Illustration />
           <h1 className="text-[30px] font-semibold tracking-[-0.025em] text-ink">Tu mesa de dibujo técnico</h1>
           <Credit className="mt-3 text-[24px] tracking-[-0.02em]" />
+          <Celebration className="mt-3 px-3.5 py-1 text-[15px]" />
           <button
             type="button"
             onClick={() => void openPdfDialog()}

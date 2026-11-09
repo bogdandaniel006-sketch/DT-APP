@@ -12,6 +12,7 @@ import { shortcutLabel, shortcutStore } from '../state/shortcuts'
 import { pickPdf } from '../utils/filePicker'
 import { openSend } from './ClassDesk'
 import { ControlsMenu } from './ControlsMenu'
+import { Celebration } from './Celebration'
 import { Credit } from './Credit'
 import { ExercisesButton } from './Exercises'
 import { Logo } from './Logo'
@@ -299,6 +300,7 @@ export const TopBar = () => {
       <div className="ml-4 hidden lg:block">
         <Credit className="text-[12px] opacity-80" />
       </div>
+      <Celebration className="ml-3 text-[12px] max-md:hidden short:hidden" />
 
       <div className="ml-auto flex items-center gap-0.5">
         <ThemeToggle className="mr-1 max-sm:hidden short:hidden" />
